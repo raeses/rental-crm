@@ -6,7 +6,9 @@ const state = {
   clients: [],
   transactions: [],
   financeSummary: null,
-  payback: []
+  payback: [],
+  estimatesByRental: {},
+  activeRentalId: null
 };
 
 function formatMoney(value) {
@@ -71,6 +73,37 @@ async function apiPost(path, body) {
 
 function notifyDataLoaded() {
   document.dispatchEvent(new CustomEvent('crm:data-loaded', { detail: { ...state } }));
+}
+
+function getTodayISODate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function toDateOnly(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function isPastDate(value) {
+  const date = toDateOnly(value);
+  if (!date) return false;
+  const today = toDateOnly(getTodayISODate());
+  return date < today;
+}
+
+function ensureRentalEstimates(rentalId) {
+  const id = Number(rentalId);
+  if (!id) return [];
+
+  if (!state.estimatesByRental[id]) {
+    state.estimatesByRental[id] = [
+      { id: `${id}-base`, name: 'Основная смета', created_at: new Date().toISOString() }
+    ];
+  }
+
+  return state.estimatesByRental[id];
 }
 
 async function loadAllData() {
@@ -213,7 +246,7 @@ function renderProjects() {
       const client = state.clients.find(c => Number(c.id) === Number(rental.client_id));
 
       return `
-        <tr>
+        <tr class="project-row" onclick="openProjectModal(${Number(rental.id)})">
           <td>${rental.title || '-'}</td>
           <td>${client ? client.name : '-'}</td>
           <td>${rental.start_date || '-'}<br><span class="muted">${rental.end_date || '-'}</span></td>
@@ -283,14 +316,17 @@ function fillSelects() {
   const rentalOptions = ['<option value="">Не выбрано</option>']
     .concat(state.rentals.map(r => `<option value="${r.id}">${r.title}</option>`))
     .join('');
-  document.getElementById('riRental').innerHTML = rentalOptions;
   document.getElementById('txRental').innerHTML = rentalOptions;
 
   const itemOptions = ['<option value="">Не выбрано</option>']
     .concat(state.items.map(i => `<option value="${i.id}">${i.name}</option>`))
     .join('');
-  document.getElementById('riItem').innerHTML = itemOptions;
   document.getElementById('txItem').innerHTML = itemOptions;
+  document.getElementById('modalRiItem').innerHTML = itemOptions;
+
+  if (state.activeRentalId) {
+    renderProjectModal(state.activeRentalId);
+  }
 }
 
 async function createClient() {
@@ -343,11 +379,29 @@ async function createItem() {
 
 async function createRental() {
   try {
+    const startDate = document.getElementById('rentalStart').value || null;
+    const endDate = document.getElementById('rentalEnd').value || null;
+
+    if (startDate && isPastDate(startDate)) {
+      alert('Нельзя создать проект в прошлом. Выбери сегодняшнюю дату или будущее.');
+      return;
+    }
+
+    if (endDate && isPastDate(endDate)) {
+      alert('Дата завершения не может быть в прошлом.');
+      return;
+    }
+
+    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+      alert('Дата завершения не может быть раньше даты начала.');
+      return;
+    }
+
     await apiPost('/rentals', {
       client_id: document.getElementById('rentalClient').value || null,
       title: document.getElementById('rentalTitle').value.trim(),
-      start_date: document.getElementById('rentalStart').value || null,
-      end_date: document.getElementById('rentalEnd').value || null,
+      start_date: startDate,
+      end_date: endDate,
       status: document.getElementById('rentalStatus').value
     });
 
@@ -362,26 +416,98 @@ async function createRental() {
   }
 }
 
-async function addRentalItem() {
+function renderProjectModal(rentalId) {
+  const rental = state.rentals.find(item => Number(item.id) === Number(rentalId));
+  if (!rental) return;
+
+  const client = state.clients.find(c => Number(c.id) === Number(rental.client_id));
+  const estimates = ensureRentalEstimates(rental.id);
+
+  document.getElementById('projectModalTitle').textContent = rental.title || 'Проект';
+  document.getElementById('projectModalSubtitle').textContent = `Клиент: ${client ? client.name : 'Без клиента'}`;
+  document.getElementById('projectModalInfo').innerHTML = `
+    <div class="card"><div class="card-label">Период</div><div>${rental.start_date || '-'} — ${rental.end_date || '-'}</div></div>
+    <div class="card"><div class="card-label">Статус</div><div>${rental.status || '-'}</div></div>
+    <div class="card"><div class="card-label">Сумма</div><div>${formatMoney(rental.total)}</div></div>
+    <div class="card"><div class="card-label">Оплачено</div><div>${formatMoney(rental.paid_amount || 0)}</div></div>
+  `;
+
+  const estimateSelect = document.getElementById('projectEstimateSelect');
+  estimateSelect.innerHTML = estimates
+    .map(estimate => `<option value="${estimate.id}">${estimate.name}</option>`)
+    .join('');
+
+  document.getElementById('projectEstimatesBody').innerHTML = estimates
+    .map(
+      estimate => `
+      <tr>
+        <td>${estimate.name}</td>
+        <td>${new Date(estimate.created_at).toLocaleDateString('ru-RU')}</td>
+      </tr>
+    `
+    )
+    .join('');
+
+  document.getElementById('projectEstimateMeta').textContent = `Всего смет: ${estimates.length}`;
+}
+
+function openProjectModal(rentalId) {
+  state.activeRentalId = Number(rentalId);
+  renderProjectModal(state.activeRentalId);
+  document.getElementById('projectModalOverlay').classList.add('open');
+}
+
+function closeProjectModal() {
+  document.getElementById('projectModalOverlay').classList.remove('open');
+}
+
+function createEstimate() {
+  if (!state.activeRentalId) return;
+
+  const name = prompt('Название новой сметы', `Смета ${ensureRentalEstimates(state.activeRentalId).length + 1}`);
+  if (!name || !name.trim()) return;
+
+  const estimates = ensureRentalEstimates(state.activeRentalId);
+  estimates.push({
+    id: `${state.activeRentalId}-${Date.now()}`,
+    name: name.trim(),
+    created_at: new Date().toISOString()
+  });
+
+  renderProjectModal(state.activeRentalId);
+}
+
+async function addRentalItemFromModal() {
   try {
+    if (!state.activeRentalId) {
+      alert('Сначала открой проект из таблицы.');
+      return;
+    }
+
+    const estimateSelect = document.getElementById('projectEstimateSelect');
+    const estimateName = estimateSelect.options[estimateSelect.selectedIndex]?.text || 'Основная смета';
+    const rawNote = document.getElementById('modalRiNote').value.trim();
+    const note = `[Смета: ${estimateName}]${rawNote ? ` ${rawNote}` : ''}`;
+
     await apiPost('/rental-items', {
-      rental_id: Number(document.getElementById('riRental').value),
-      item_id: Number(document.getElementById('riItem').value),
-      price: Number(document.getElementById('riPrice').value || 0),
-      days: Number(document.getElementById('riDays').value || 1),
-      quantity: Number(document.getElementById('riQty').value || 1),
-      subrent_cost: Number(document.getElementById('riSubrentCost').value || 0),
-      note: document.getElementById('riNote').value.trim()
+      rental_id: Number(state.activeRentalId),
+      item_id: Number(document.getElementById('modalRiItem').value),
+      price: Number(document.getElementById('modalRiPrice').value || 0),
+      days: Number(document.getElementById('modalRiDays').value || 1),
+      quantity: Number(document.getElementById('modalRiQty').value || 1),
+      subrent_cost: Number(document.getElementById('modalRiSubrentCost').value || 0),
+      note
     });
 
-    document.getElementById('riPrice').value = '';
-    document.getElementById('riDays').value = '1';
-    document.getElementById('riQty').value = '1';
-    document.getElementById('riSubrentCost').value = '0';
-    document.getElementById('riNote').value = '';
+    document.getElementById('modalRiPrice').value = '';
+    document.getElementById('modalRiDays').value = '1';
+    document.getElementById('modalRiQty').value = '1';
+    document.getElementById('modalRiSubrentCost').value = '0';
+    document.getElementById('modalRiNote').value = '';
 
     await loadAllData();
-    alert('Техника добавлена в проект');
+    openProjectModal(state.activeRentalId);
+    alert('Техника добавлена в смету проекта');
   } catch (error) {
     alert(error.message);
   }
@@ -428,6 +554,15 @@ function toggleSidebar() {
   overlay.classList.add('open');
 }
 
+function setupProjectDateGuard() {
+  const today = getTodayISODate();
+  const start = document.getElementById('rentalStart');
+  const end = document.getElementById('rentalEnd');
+
+  start.min = today;
+  end.min = today;
+}
+
 function setupNavigation() {
   const navButtons = document.querySelectorAll('.nav button');
 
@@ -448,7 +583,14 @@ function setupNavigation() {
   document.getElementById('sidebarOverlay').addEventListener('click', closeSidebar);
 
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') closeSidebar();
+    if (event.key === 'Escape') {
+      closeProjectModal();
+      closeSidebar();
+    }
+  });
+
+  document.getElementById('projectModalOverlay').addEventListener('click', event => {
+    if (event.target.id === 'projectModalOverlay') closeProjectModal();
   });
 }
 
@@ -456,8 +598,10 @@ window.crmApp = {
   getState: () => state,
   formatMoney,
   formatPercent,
-  normalizePaybackItem
+  normalizePaybackItem,
+  openProjectModal
 };
 
 setupNavigation();
+setupProjectDateGuard();
 loadAllData();
