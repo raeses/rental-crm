@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APITCHENKOV Rental CRM</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="topbar">
+    <button id="menuToggle" class="menu-toggle" aria-label="Открыть меню">☰</button>
+    <div class="topbar-brand">APITCHENKOV</div>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">APITCHENKOV</div>
+      <div class="brand-sub">Rental Finance CRM</div>
+      <nav class="nav">
+        <button data-page="dashboard" class="active">Дашборд</button>
+        <button data-page="items">Техника</button>
+        <button data-page="projects">Проекты</button>
+        <button data-page="clients">Клиенты</button>
+        <button data-page="transactions">Финансы</button>
+        <button data-page="analytics">Аналитика</button>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <section id="page-dashboard">
+        <div class="header">
+          <div>
+            <h1 class="title">Финансовый дашборд</h1>
+            <div class="subtitle">Доходы, расходы, прибыль и окупаемость техники</div>
+          </div>
+          <div class="actions">
+            <button class="secondary" onclick="loadAllData()">Обновить</button>
+          </div>
+        </div>
+
+        <div class="grid" id="summaryCards"></div>
+
+        <div class="two-col">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Техника</th>
+                  <th>Куплена за</th>
+                  <th>Выручка</th>
+                  <th>Расходы</th>
+                  <th>Прибыль</th>
+                  <th>Окупаемость</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardPaybackBody"></tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="section-title">Что сейчас главное</div>
+            <div id="dashboardNotes" class="muted">Загрузка...</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-items" class="hidden">
+        <div class="header">
+          <div>
+            <h1 class="title">Техника</h1>
+            <div class="subtitle">Каталог и окупаемость по каждой позиции</div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Название</th>
+                  <th>Категория</th>
+                  <th>Ставка</th>
+                  <th>Статус</th>
+                  <th>Выручка</th>
+                  <th>Окупаемость</th>
+                </tr>
+              </thead>
+              <tbody id="itemsBody"></tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="section-title">Новая техника</div>
+            <div class="form-grid">
+              <input id="itemName" placeholder="Название" />
+              <input id="itemCategory" placeholder="Категория" />
+              <input id="itemPrice" type="number" step="0.01" placeholder="Цена аренды" />
+              <input id="itemBaseRate" type="number" step="0.01" placeholder="Базовая ставка" />
+              <input id="itemPurchasePrice" type="number" step="0.01" placeholder="Цена покупки" />
+              <input id="itemPurchaseDate" type="date" />
+              <select id="itemStatus">
+                <option value="available">available</option>
+                <option value="unavailable">unavailable</option>
+                <option value="maintenance">maintenance</option>
+              </select>
+              <select id="itemOwnerType">
+                <option value="own">own</option>
+                <option value="partner">partner</option>
+              </select>
+              <input id="itemSerial" class="full" placeholder="Серийный номер" />
+              <button class="primary full" onclick="createItem()">Сохранить технику</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-projects" class="hidden">
+        <div class="header">
+          <div>
+            <h1 class="title">Проекты</h1>
+            <div class="subtitle">Доход, оплата и техника внутри проекта</div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Проект</th>
+                  <th>Клиент</th>
+                  <th>Даты</th>
+                  <th>Сумма</th>
+                  <th>Оплата</th>
+                  <th>Статус</th>
+                </tr>
+              </thead>
+              <tbody id="projectsBody"></tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="section-title">Новый проект</div>
+            <div class="form-grid">
+              <select id="rentalClient"></select>
+              <input id="rentalTitle" placeholder="Название проекта" />
+              <input id="rentalStart" type="date" />
+              <input id="rentalEnd" type="date" />
+              <select id="rentalStatus">
+                <option value="new">new</option>
+                <option value="confirmed">confirmed</option>
+                <option value="completed">completed</option>
+                <option value="cancelled">cancelled</option>
+              </select>
+              <div></div>
+              <button class="primary full" onclick="createRental()">Сохранить проект</button>
+            </div>
+
+            <hr style="border-color: var(--border); margin: 22px 0;">
+
+            <div class="section-title">Добавить технику в проект</div>
+            <div class="form-grid">
+              <select id="riRental"></select>
+              <select id="riItem"></select>
+              <input id="riPrice" type="number" step="0.01" placeholder="Цена за день" />
+              <input id="riDays" type="number" step="1" placeholder="Дней" value="1" />
+              <input id="riQty" type="number" step="1" placeholder="Количество" value="1" />
+              <input id="riSubrentCost" type="number" step="0.01" placeholder="Субаренда" value="0" />
+              <textarea id="riNote" class="full" placeholder="Комментарий"></textarea>
+              <button class="primary full" onclick="addRentalItem()">Добавить в проект</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-clients" class="hidden">
+        <div class="header">
+          <div>
+            <h1 class="title">Клиенты</h1>
+            <div class="subtitle">Контакты заказчиков</div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Имя</th>
+                  <th>Телефон</th>
+                  <th>Комментарий</th>
+                </tr>
+              </thead>
+              <tbody id="clientsBody"></tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="section-title">Новый клиент</div>
+            <div class="form-grid">
+              <input id="clientName" placeholder="Имя" />
+              <input id="clientPhone" placeholder="Телефон" />
+              <textarea id="clientNote" class="full" placeholder="Комментарий"></textarea>
+              <button class="primary full" onclick="createClient()">Сохранить клиента</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-transactions" class="hidden">
+        <div class="header">
+          <div>
+            <h1 class="title">Финансы</h1>
+            <div class="subtitle">Доходы и расходы по проектам и технике</div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Тип</th>
+                  <th>Сумма</th>
+                  <th>Категория</th>
+                  <th>Проект</th>
+                  <th>Техника</th>
+                  <th>Комментарий</th>
+                </tr>
+              </thead>
+              <tbody id="transactionsBody"></tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="section-title">Новая операция</div>
+            <div class="form-grid">
+              <select id="txType">
+                <option value="income">income</option>
+                <option value="expense">expense</option>
+              </select>
+              <input id="txAmount" type="number" step="0.01" placeholder="Сумма" />
+              <input id="txCategory" placeholder="Категория" value="project_income" />
+              <select id="txRental"></select>
+              <select id="txItem"></select>
+              <div></div>
+              <textarea id="txNote" class="full" placeholder="Комментарий"></textarea>
+              <button class="primary full" onclick="createTransaction()">Сохранить операцию</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-analytics" class="hidden">
+        <div class="header">
+          <div>
+            <h1 class="title">Аналитика</h1>
+            <div class="subtitle">Окупаемость техники</div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Техника</th>
+                <th>Цена покупки</th>
+                <th>Доход</th>
+                <th>Расходы</th>
+                <th>Прибыль</th>
+                <th>Окупаемость</th>
+              </tr>
+            </thead>
+            <tbody id="paybackTableBody">
+              <tr>
+                <td colspan="6" class="empty">Загрузка...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+    <script src="app.js"></script>
+    <script src="analytics.js"></script>
+
+
+</body>
+</html>
