@@ -594,7 +594,6 @@ function setupNavigation() {
   });
 }
 
-
 window.crmApp = {
   getState: () => state,
   formatMoney,
