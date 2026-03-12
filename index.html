@@ -95,7 +95,14 @@
             <div class="section-title">Новая техника</div>
             <div class="form-grid">
               <input id="itemName" placeholder="Название" />
-              <input id="itemCategory" placeholder="Категория" />
+              <select id="itemCategory">
+                <option value="Camera">Camera</option>
+                <option value="Camera Accessories">Camera Accessories</option>
+                <option value="Camera Support">Camera Support</option>
+                <option value="Lenses and Filters">Lenses and Filters</option>
+                <option value="Monitors and Playback">Monitors and Playback</option>
+                <option value="Other">Other</option>
+              </select>
               <input id="itemPrice" type="number" step="0.01" placeholder="Цена аренды" />
               <input id="itemBaseRate" type="number" step="0.01" placeholder="Базовая ставка" />
               <input id="itemPurchasePrice" type="number" step="0.01" placeholder="Цена покупки" />
@@ -160,17 +167,8 @@
 
             <hr style="border-color: var(--border); margin: 22px 0;">
 
-            <div class="section-title">Добавить технику в проект</div>
-            <div class="form-grid">
-              <select id="riRental"></select>
-              <select id="riItem"></select>
-              <input id="riPrice" type="number" step="0.01" placeholder="Цена за день" />
-              <input id="riDays" type="number" step="1" placeholder="Дней" value="1" />
-              <input id="riQty" type="number" step="1" placeholder="Количество" value="1" />
-              <input id="riSubrentCost" type="number" step="0.01" placeholder="Субаренда" value="0" />
-              <textarea id="riNote" class="full" placeholder="Комментарий"></textarea>
-              <button class="primary full" onclick="addRentalItem()">Добавить в проект</button>
-            </div>
+            <div class="section-title">Работа с техникой и сметами</div>
+            <div class="muted">Открой проект из таблицы слева — в окне проекта можно посмотреть информацию, вести сметы и добавлять технику.</div>
           </div>
         </div>
       </section>
@@ -283,6 +281,57 @@
       </section>
 
     </main>
+  </div>
+
+  <div class="modal-overlay" id="projectModalOverlay">
+    <div class="modal project-modal">
+      <div class="modal-header">
+        <div>
+          <h2 id="projectModalTitle">Проект</h2>
+          <div id="projectModalSubtitle" class="muted"></div>
+        </div>
+        <button class="secondary" onclick="closeProjectModal()">Закрыть</button>
+      </div>
+
+      <div id="projectModalInfo" class="form-grid"></div>
+
+      <hr style="border-color: var(--border); margin: 18px 0;">
+
+      <div class="modal-header">
+        <div class="section-title" style="margin:0;">Сметы проекта</div>
+        <button class="secondary" onclick="createEstimate()">Новая смета</button>
+      </div>
+
+      <div class="form-grid">
+        <select id="projectEstimateSelect"></select>
+        <div class="muted" id="projectEstimateMeta"></div>
+      </div>
+
+      <div class="table-wrap" style="margin-top: 12px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Смета</th>
+              <th>Дата</th>
+            </tr>
+          </thead>
+          <tbody id="projectEstimatesBody"></tbody>
+        </table>
+      </div>
+
+      <hr style="border-color: var(--border); margin: 18px 0;">
+
+      <div class="section-title">Добавить технику в смету</div>
+      <div class="form-grid">
+        <select id="modalRiItem"></select>
+        <input id="modalRiPrice" type="number" step="0.01" placeholder="Цена за день" />
+        <input id="modalRiDays" type="number" step="1" placeholder="Дней" value="1" />
+        <input id="modalRiQty" type="number" step="1" placeholder="Количество" value="1" />
+        <input id="modalRiSubrentCost" type="number" step="0.01" placeholder="Субаренда" value="0" />
+        <textarea id="modalRiNote" class="full" placeholder="Комментарий"></textarea>
+        <button class="primary full" onclick="addRentalItemFromModal()">Добавить в смету</button>
+      </div>
+    </div>
   </div>
 
     <script src="app.js"></script>
