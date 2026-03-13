@@ -5,6 +5,9 @@ const ebState = {
   items: []
 };
 
+let estimateBuilderInitialized = false;
+let estimateProjectsPromise = null;
+
 const CATEGORY_OPTIONS = [
   'Camera',
   'Camera Accessories',
@@ -158,10 +161,20 @@ async function loadEstimatesByProject(projectId) {
 }
 
 async function loadProjects() {
-  ebState.projects = await req('/api/projects');
-  const projectSelect = document.getElementById('ebProjectSelect');
-  projectSelect.innerHTML = ebState.projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-  if (projectSelect.value) await loadEstimatesByProject(projectSelect.value);
+  if (estimateProjectsPromise) return estimateProjectsPromise;
+
+  estimateProjectsPromise = (async () => {
+    ebState.projects = await req('/api/projects');
+    const projectSelect = document.getElementById('ebProjectSelect');
+    projectSelect.innerHTML = ebState.projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    if (projectSelect.value) await loadEstimatesByProject(projectSelect.value);
+  })();
+
+  try {
+    return await estimateProjectsPromise;
+  } finally {
+    estimateProjectsPromise = null;
+  }
 }
 
 function getEstimatePayload() {
@@ -222,11 +235,12 @@ async function upsertItems() {
 }
 
 const estimateBuilder = {
-  async loadProjects() {
+  async loadProjects(options = {}) {
+    const { silent = false } = options;
     try {
       await loadProjects();
     } catch (error) {
-      alert(error.message);
+      if (!silent) alert(error.message);
     }
   },
 
@@ -379,6 +393,13 @@ const estimateBuilder = {
 
 window.estimateBuilder = estimateBuilder;
 
+function initializeEstimateBuilder() {
+  if (estimateBuilderInitialized) return;
+  estimateBuilderInitialized = true;
+
+  estimateBuilder.loadProjects({ silent: true });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const projectSelect = document.getElementById('ebProjectSelect');
   const estimateSelect = document.getElementById('ebEstimateSelect');
@@ -396,5 +417,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (taxEnabled) taxEnabled.addEventListener('change', calcTotals);
   if (taxPercent) taxPercent.addEventListener('input', calcTotals);
 
-  estimateBuilder.loadProjects();
+  if (!document.getElementById('page-estimates')?.classList.contains('hidden')) {
+    initializeEstimateBuilder();
+  }
+});
+
+document.addEventListener('crm:page-change', event => {
+  if (event.detail?.page === 'estimates') {
+    initializeEstimateBuilder();
+  }
 });
