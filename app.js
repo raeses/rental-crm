@@ -8,7 +8,8 @@ const state = {
   financeSummary: null,
   payback: [],
   estimatesByRental: {},
-  activeRentalId: null
+  activeRentalId: null,
+  subrentals: []
 };
 
 function formatMoney(value) {
@@ -71,6 +72,16 @@ async function apiPost(path, body) {
   return data;
 }
 
+
+async function apiGetSafe(path, fallback = null) {
+  try {
+    return await apiGet(path);
+  } catch (error) {
+    console.warn(`Не удалось загрузить ${path}:`, error.message);
+    return fallback;
+  }
+}
+
 function notifyDataLoaded() {
   document.dispatchEvent(new CustomEvent('crm:data-loaded', { detail: { ...state } }));
 }
@@ -108,13 +119,14 @@ function ensureRentalEstimates(rentalId) {
 
 async function loadAllData() {
   try {
-    const [items, rentals, clients, transactions, financeSummary, payback] = await Promise.all([
+    const [items, rentals, clients, transactions, financeSummary, payback, subrentals] = await Promise.all([
       apiGet('/items'),
       apiGet('/rentals'),
       apiGet('/clients'),
       apiGet('/transactions'),
       apiGet('/finance/summary'),
-      apiGet('/finance/item-payback')
+      apiGet('/finance/item-payback'),
+      apiGetSafe('/subrentals', [])
     ]);
 
     state.items = Array.isArray(items) ? items : [];
@@ -123,6 +135,7 @@ async function loadAllData() {
     state.transactions = Array.isArray(transactions) ? transactions : [];
     state.financeSummary = financeSummary || {};
     state.payback = (Array.isArray(payback) ? payback : []).map(normalizePaybackItem);
+    state.subrentals = Array.isArray(subrentals) ? subrentals : [];
 
     renderAll();
     notifyDataLoaded();
@@ -140,6 +153,8 @@ function renderAll() {
   renderProjects();
   renderClients();
   renderTransactions();
+  renderSubrentals();
+  renderSubrentalsTotals();
   fillSelects();
 }
 
@@ -307,6 +322,200 @@ function renderTransactions() {
     .join('');
 }
 
+
+function getSubrentalDerivedValues(subrental) {
+  const supplierPrice = Number(subrental.supplier_price_per_day || 0);
+  const clientPrice = Number(subrental.client_price_per_day || 0);
+  const quantity = Number(subrental.quantity || 0);
+  const days = Number(subrental.days || 0);
+
+  const supplierTotal = Number(subrental.supplier_total ?? supplierPrice * quantity * days);
+  const clientTotal = Number(subrental.client_total ?? clientPrice * quantity * days);
+  const margin = Number(subrental.margin ?? clientTotal - supplierTotal);
+
+  return { supplierTotal, clientTotal, margin };
+}
+
+function renderSubrentals() {
+  const body = document.getElementById('subrentalsBody');
+  if (!body) return;
+
+  if (!state.subrentals.length) {
+    body.innerHTML = '<tr><td colspan="11" class="empty">Пока нет субаренд.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = state.subrentals
+    .map(subrental => {
+      const rental = state.rentals.find(r => Number(r.id) === Number(subrental.project_id));
+      const { supplierTotal, clientTotal, margin } = getSubrentalDerivedValues(subrental);
+      const rowClass = margin < 0 ? 'negative' : (margin > 0 ? 'positive' : 'neutral');
+
+      return `
+        <tr class="subrental-row ${rowClass}">
+          <td>${rental ? rental.title : (subrental.project_id || '-')}</td>
+          <td>${subrental.equipment_name || '-'}</td>
+          <td>${subrental.supplier_name || '-'}</td>
+          <td>${formatMoney(subrental.supplier_price_per_day)}</td>
+          <td>${formatMoney(subrental.client_price_per_day)}</td>
+          <td>${subrental.quantity || 0}</td>
+          <td>${subrental.days || 0}</td>
+          <td>${formatMoney(supplierTotal)}</td>
+          <td>${formatMoney(clientTotal)}</td>
+          <td>${formatMoney(margin)}</td>
+          <td>
+            <div class="actions-inline">
+              <button onclick="editSubrental(${Number(subrental.id)})">Изменить</button>
+              <button onclick="deleteSubrental(${Number(subrental.id)})">Удалить</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    })
+    .join('');
+}
+
+function renderSubrentalsTotals() {
+  const wrap = document.getElementById('subrentalsTotals');
+  if (!wrap) return;
+
+  const totals = state.subrentals.reduce(
+    (acc, subrental) => {
+      const { supplierTotal, clientTotal, margin } = getSubrentalDerivedValues(subrental);
+      acc.supplier += supplierTotal;
+      acc.client += clientTotal;
+      acc.margin += margin;
+      return acc;
+    },
+    { supplier: 0, client: 0, margin: 0 }
+  );
+
+  wrap.innerHTML = [
+    ['Себестоимость субаренды', formatMoney(totals.supplier)],
+    ['Выставлено клиенту', formatMoney(totals.client)],
+    ['Маржа субаренды', formatMoney(totals.margin)]
+  ]
+    .map(
+      ([label, value]) => `
+      <div class="card totals-grid-item">
+        <div class="card-label">${label}</div>
+        <div class="card-value">${value}</div>
+      </div>
+    `
+    )
+    .join('');
+}
+
+function validateSubrentalPayload(payload) {
+  if (!payload.project_id) return 'Выбери проект.';
+  if (!payload.equipment_name) return 'Укажи технику.';
+  if (payload.quantity <= 0) return 'Количество должно быть больше 0.';
+  if (payload.days <= 0) return 'Количество дней должно быть больше 0.';
+  if (payload.supplier_price_per_day < 0 || payload.client_price_per_day < 0) {
+    return 'Цены не могут быть отрицательными.';
+  }
+  return null;
+}
+
+async function createSubrental() {
+  try {
+    const payload = {
+      project_id: Number(document.getElementById('subrentalProject').value),
+      equipment_name: document.getElementById('subrentalEquipmentName').value.trim(),
+      supplier_name: document.getElementById('subrentalSupplierName').value.trim(),
+      supplier_contact: document.getElementById('subrentalSupplierContact').value.trim(),
+      supplier_price_per_day: Number(document.getElementById('subrentalSupplierPrice').value || 0),
+      client_price_per_day: Number(document.getElementById('subrentalClientPrice').value || 0),
+      quantity: Number(document.getElementById('subrentalQty').value || 0),
+      days: Number(document.getElementById('subrentalDays').value || 0),
+      notes: document.getElementById('subrentalNotes').value.trim()
+    };
+
+    const validationError = validateSubrentalPayload(payload);
+    if (validationError) {
+      alert(validationError);
+      return;
+    }
+
+    await apiPost('/subrentals', payload);
+
+    document.getElementById('subrentalEquipmentName').value = '';
+    document.getElementById('subrentalSupplierName').value = '';
+    document.getElementById('subrentalSupplierContact').value = '';
+    document.getElementById('subrentalSupplierPrice').value = '';
+    document.getElementById('subrentalClientPrice').value = '';
+    document.getElementById('subrentalQty').value = '1';
+    document.getElementById('subrentalDays').value = '1';
+    document.getElementById('subrentalNotes').value = '';
+
+    await loadAllData();
+    alert('Субаренда сохранена');
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function deleteSubrental(id) {
+  try {
+    if (!confirm('Удалить субаренду?')) return;
+
+    const res = await fetch(`${API}/subrentals/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Ошибка удаления');
+    }
+
+    await loadAllData();
+    alert('Субаренда удалена');
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function editSubrental(id) {
+  try {
+    const current = state.subrentals.find(item => Number(item.id) === Number(id));
+    if (!current) return;
+
+    const supplierPrice = prompt('Цена поставщика / день', current.supplier_price_per_day ?? 0);
+    if (supplierPrice === null) return;
+    const clientPrice = prompt('Цена клиента / день', current.client_price_per_day ?? 0);
+    if (clientPrice === null) return;
+    const quantity = prompt('Количество', current.quantity ?? 1);
+    if (quantity === null) return;
+    const days = prompt('Дней', current.days ?? 1);
+    if (days === null) return;
+    const notes = prompt('Комментарий', current.notes || '');
+    if (notes === null) return;
+
+    const payload = {
+      supplier_price_per_day: Number(supplierPrice),
+      client_price_per_day: Number(clientPrice),
+      quantity: Number(quantity),
+      days: Number(days),
+      notes: String(notes).trim()
+    };
+
+    if (payload.quantity <= 0 || payload.days <= 0 || payload.supplier_price_per_day < 0 || payload.client_price_per_day < 0) {
+      alert('Проверь значения: количество/дни > 0, цены >= 0');
+      return;
+    }
+
+    const res = await fetch(`${API}/subrentals/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Ошибка обновления');
+
+    await loadAllData();
+    alert('Субаренда обновлена');
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
 function fillSelects() {
   const clientOptions = ['<option value="">Без клиента</option>']
     .concat(state.clients.map(c => `<option value="${c.id}">${c.name}</option>`))
@@ -317,6 +526,11 @@ function fillSelects() {
     .concat(state.rentals.map(r => `<option value="${r.id}">${r.title}</option>`))
     .join('');
   document.getElementById('txRental').innerHTML = rentalOptions;
+
+  const subrentalProject = document.getElementById('subrentalProject');
+  if (subrentalProject) {
+    subrentalProject.innerHTML = rentalOptions;
+  }
 
   const itemOptions = ['<option value="">Не выбрано</option>']
     .concat(state.items.map(i => `<option value="${i.id}">${i.name}</option>`))
@@ -589,10 +803,14 @@ function setupNavigation() {
     }
   });
 
-  document.getElementById('projectModalOverlay').addEventListener('click', event => {
-    if (event.target.id === 'projectModalOverlay') closeProjectModal();
-  });
+  const projectModalOverlay = document.getElementById('projectModalOverlay');
+  if (projectModalOverlay) {
+    projectModalOverlay.addEventListener('click', event => {
+      if (event.target.id === 'projectModalOverlay') closeProjectModal();
+    });
+  }
 }
+
 
 window.crmApp = {
   getState: () => state,

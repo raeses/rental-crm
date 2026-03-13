@@ -24,6 +24,7 @@
         <button data-page="projects">Проекты</button>
         <button data-page="clients">Клиенты</button>
         <button data-page="transactions">Финансы</button>
+        <button data-page="subrentals">Субаренда</button>
         <button data-page="analytics">Аналитика</button>
       </nav>
     </aside>
@@ -246,6 +247,56 @@
               <div></div>
               <textarea id="txNote" class="full" placeholder="Комментарий"></textarea>
               <button class="primary full" onclick="createTransaction()">Сохранить операцию</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-subrentals" class="hidden">
+        <div class="header">
+          <div>
+            <h1 class="title">Субаренда</h1>
+            <div class="subtitle">Техника, которую мы арендуем у других ренталов под проекты</div>
+          </div>
+        </div>
+
+        <div class="grid" id="subrentalsTotals"></div>
+
+        <div class="two-col">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Проект</th>
+                  <th>Техника</th>
+                  <th>Поставщик</th>
+                  <th>Поставщик/день</th>
+                  <th>Клиент/день</th>
+                  <th>Кол-во</th>
+                  <th>Дней</th>
+                  <th>Себестоимость</th>
+                  <th>Клиент</th>
+                  <th>Маржа</th>
+                  <th>Действия</th>
+                </tr>
+              </thead>
+              <tbody id="subrentalsBody"></tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="section-title">Новая субаренда</div>
+            <div class="form-grid">
+              <select id="subrentalProject"></select>
+              <input id="subrentalEquipmentName" placeholder="Техника" />
+              <input id="subrentalSupplierName" placeholder="Поставщик" />
+              <input id="subrentalSupplierContact" placeholder="Контакт поставщика" />
+              <input id="subrentalSupplierPrice" type="number" step="0.01" placeholder="Цена поставщика / день" />
+              <input id="subrentalClientPrice" type="number" step="0.01" placeholder="Цена клиента / день" />
+              <input id="subrentalQty" type="number" step="1" value="1" placeholder="Количество" />
+              <input id="subrentalDays" type="number" step="1" value="1" placeholder="Дней" />
+              <textarea id="subrentalNotes" class="full" placeholder="Комментарий"></textarea>
+              <button class="primary full" onclick="createSubrental()">Сохранить субаренду</button>
             </div>
           </div>
         </div>
