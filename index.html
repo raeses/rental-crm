@@ -24,6 +24,8 @@
         <button data-page="projects">Проекты</button>
         <button data-page="clients">Клиенты</button>
         <button data-page="transactions">Финансы</button>
+        <button data-page="subrentals">Субаренда</button>
+        <button data-page="estimates">Сметы</button>
         <button data-page="analytics">Аналитика</button>
       </nav>
     </aside>
@@ -95,7 +97,14 @@
             <div class="section-title">Новая техника</div>
             <div class="form-grid">
               <input id="itemName" placeholder="Название" />
-              <input id="itemCategory" placeholder="Категория" />
+              <select id="itemCategory">
+                <option value="Camera">Camera</option>
+                <option value="Camera Accessories">Camera Accessories</option>
+                <option value="Camera Support">Camera Support</option>
+                <option value="Lenses and Filters">Lenses and Filters</option>
+                <option value="Monitors and Playback">Monitors and Playback</option>
+                <option value="Other">Other</option>
+              </select>
               <input id="itemPrice" type="number" step="0.01" placeholder="Цена аренды" />
               <input id="itemBaseRate" type="number" step="0.01" placeholder="Базовая ставка" />
               <input id="itemPurchasePrice" type="number" step="0.01" placeholder="Цена покупки" />
@@ -160,17 +169,8 @@
 
             <hr style="border-color: var(--border); margin: 22px 0;">
 
-            <div class="section-title">Добавить технику в проект</div>
-            <div class="form-grid">
-              <select id="riRental"></select>
-              <select id="riItem"></select>
-              <input id="riPrice" type="number" step="0.01" placeholder="Цена за день" />
-              <input id="riDays" type="number" step="1" placeholder="Дней" value="1" />
-              <input id="riQty" type="number" step="1" placeholder="Количество" value="1" />
-              <input id="riSubrentCost" type="number" step="0.01" placeholder="Субаренда" value="0" />
-              <textarea id="riNote" class="full" placeholder="Комментарий"></textarea>
-              <button class="primary full" onclick="addRentalItem()">Добавить в проект</button>
-            </div>
+            <div class="section-title">Работа с техникой и сметами</div>
+            <div class="muted">Открой проект из таблицы слева — в окне проекта можно посмотреть информацию, вести сметы и добавлять технику.</div>
           </div>
         </div>
       </section>
@@ -253,6 +253,123 @@
         </div>
       </section>
 
+      <section id="page-subrentals" class="hidden">
+        <div class="header">
+          <div>
+            <h1 class="title">Субаренда</h1>
+            <div class="subtitle">Техника, которую мы арендуем у других ренталов под проекты</div>
+          </div>
+        </div>
+
+        <div class="grid" id="subrentalsTotals"></div>
+
+        <div class="two-col">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Проект</th>
+                  <th>Техника</th>
+                  <th>Поставщик</th>
+                  <th>Поставщик/день</th>
+                  <th>Клиент/день</th>
+                  <th>Кол-во</th>
+                  <th>Дней</th>
+                  <th>Себестоимость</th>
+                  <th>Клиент</th>
+                  <th>Маржа</th>
+                  <th>Действия</th>
+                </tr>
+              </thead>
+              <tbody id="subrentalsBody"></tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <div class="section-title">Новая субаренда</div>
+            <div class="form-grid">
+              <select id="subrentalProject"></select>
+              <input id="subrentalEquipmentName" placeholder="Техника" />
+              <input id="subrentalSupplierName" placeholder="Поставщик" />
+              <input id="subrentalSupplierContact" placeholder="Контакт поставщика" />
+              <input id="subrentalSupplierPrice" type="number" step="0.01" placeholder="Цена поставщика / день" />
+              <input id="subrentalClientPrice" type="number" step="0.01" placeholder="Цена клиента / день" />
+              <input id="subrentalQty" type="number" step="1" value="1" placeholder="Количество" />
+              <input id="subrentalDays" type="number" step="1" value="1" placeholder="Дней" />
+              <textarea id="subrentalNotes" class="full" placeholder="Комментарий"></textarea>
+              <button class="primary full" onclick="createSubrental()">Сохранить субаренду</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-estimates" class="hidden">
+        <div class="header">
+          <div>
+            <h1 class="title">Estimate Builder</h1>
+            <div class="subtitle">Проекты, сметы, позиции и расчёты для клиента</div>
+          </div>
+          <div class="actions">
+            <button class="secondary" onclick="estimateBuilder.loadProjects()">Обновить</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;">
+          <div class="form-grid">
+            <select id="ebProjectSelect"></select>
+            <select id="ebEstimateSelect"></select>
+            <button class="secondary" onclick="estimateBuilder.createEstimatePrompt()">Новая смета</button>
+            <button class="secondary" onclick="estimateBuilder.archiveEstimate()">Archive estimate</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;">
+          <div class="form-grid">
+            <input id="ebEstimateNumber" placeholder="Estimate number" />
+            <input id="ebEstimateTitle" placeholder="Title" />
+            <input id="ebEstimateStart" type="date" />
+            <input id="ebEstimateEnd" type="date" />
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Наименование</th>
+                <th>Кол-во</th>
+                <th>Тарифная оплата/ед.</th>
+                <th>Итого по комплекту</th>
+                <th>Кол-во смен</th>
+                <th>Итого, руб.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="ebItemsBody"></tbody>
+          </table>
+        </div>
+
+        <div class="actions" style="margin:14px 0;">
+          <button class="secondary" onclick="estimateBuilder.addItem()">Add item</button>
+          <button class="secondary" onclick="estimateBuilder.addFromCatalog()">Add from catalog</button>
+          <button class="secondary" onclick="estimateBuilder.saveEstimate()">Save estimate</button>
+          <button class="secondary" onclick="estimateBuilder.previewPdf()">Preview PDF</button>
+          <button class="primary" onclick="estimateBuilder.generatePdf()">Generate PDF</button>
+        </div>
+
+        <div class="card">
+          <div class="form-grid">
+            <input id="ebDiscountPercent" type="number" min="0" step="0.01" placeholder="Discount %" />
+            <div style="display:flex;align-items:center;gap:10px;">
+              <label class="muted" for="ebTaxEnabled">Tax enabled</label>
+              <input id="ebTaxEnabled" type="checkbox" />
+            </div>
+            <input id="ebTaxPercent" type="number" min="0" step="0.01" placeholder="Tax %" />
+            <div id="ebTotals" class="card"></div>
+          </div>
+        </div>
+      </section>
+
       <section id="page-analytics" class="hidden">
         <div class="header">
           <div>
@@ -285,8 +402,109 @@
     </main>
   </div>
 
+
+  <div class="modal-overlay" id="estimateModalOverlay">
+    <div class="modal estimate-modal">
+      <div class="modal-header">
+        <div>
+          <h2 id="estimateModalTitle">Смета</h2>
+          <div id="estimateModalSubtitle" class="muted"></div>
+        </div>
+        <button class="secondary" onclick="closeEstimateModal()">Закрыть</button>
+      </div>
+
+      <div class="form-grid">
+        <input id="estimateShifts" type="number" step="1" min="1" placeholder="Кол-во смен" />
+        <input id="estimateDiscount" type="number" step="0.01" min="0" max="100" placeholder="Скидка, %" />
+        <button class="primary" onclick="applyEstimateSettings()">Сохранить параметры сметы</button>
+        <div id="estimateSummary" class="card"></div>
+      </div>
+
+      <div class="table-wrap" style="margin-top: 12px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Техника</th>
+              <th>Кол-во</th>
+              <th>Цена до скидки</th>
+              <th>Цена со скидкой</th>
+              <th>Смен</th>
+              <th>Итого</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="estimateItemsBody"></tbody>
+        </table>
+      </div>
+
+      <hr style="border-color: var(--border); margin: 18px 0;">
+
+      <div class="section-title">Добавить технику в смету</div>
+      <div class="form-grid">
+        <select id="estimateItemSelect"></select>
+        <input id="estimateItemPrice" type="number" step="0.01" placeholder="Цена до скидки / смена" />
+        <input id="estimateItemQty" type="number" step="1" min="1" value="1" placeholder="Количество" />
+        <textarea id="estimateItemNote" class="full" placeholder="Комментарий"></textarea>
+        <button class="primary full" onclick="addEstimateItem()">Добавить технику</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="projectModalOverlay">
+    <div class="modal project-modal">
+      <div class="modal-header">
+        <div>
+          <h2 id="projectModalTitle">Проект</h2>
+          <div id="projectModalSubtitle" class="muted"></div>
+        </div>
+        <button class="secondary" onclick="closeProjectModal()">Закрыть</button>
+      </div>
+
+      <div id="projectModalInfo" class="form-grid"></div>
+
+      <hr style="border-color: var(--border); margin: 18px 0;">
+
+      <div class="modal-header">
+        <div class="section-title" style="margin:0;">Сметы проекта</div>
+        <button class="secondary" onclick="createEstimate()">Новая смета</button>
+      </div>
+
+      <div class="form-grid estimate-controls">
+        <select id="projectEstimateSelect"></select>
+        <button class="secondary" onclick="openEstimateModal()">Открыть смету</button>
+        <div class="muted full" id="projectEstimateMeta"></div>
+      </div>
+
+      <div class="table-wrap" style="margin-top: 12px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Смета</th>
+              <th>Дата</th>
+            </tr>
+          </thead>
+          <tbody id="projectEstimatesBody"></tbody>
+        </table>
+      </div>
+
+      <hr style="border-color: var(--border); margin: 18px 0;">
+
+      <div class="section-title">Добавить технику в смету</div>
+      <div class="form-grid">
+        <select id="modalRiItem"></select>
+        <input id="modalRiPrice" type="number" step="0.01" placeholder="Цена за день" />
+        <input id="modalRiDays" type="number" step="1" placeholder="Дней" value="1" />
+        <input id="modalRiQty" type="number" step="1" placeholder="Количество" value="1" />
+        <input id="modalRiSubrentCost" type="number" step="0.01" placeholder="Субаренда" value="0" />
+        <textarea id="modalRiNote" class="full" placeholder="Комментарий"></textarea>
+        <button class="primary full" onclick="addRentalItemFromModal()">Добавить в смету</button>
+      </div>
+    </div>
+  </div>
+
     <script src="app.js"></script>
     <script src="analytics.js"></script>
+    <script src="estimates.js"></script>
 
 
 </body>
