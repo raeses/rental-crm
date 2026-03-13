@@ -1,43 +1,41 @@
-
 // ===== ANALYTICS: EQUIPMENT PAYBACK =====
 
-async function loadEquipmentPayback() {
-  const tableBody = document.getElementById("paybackTableBody");
+function renderAnalyticsPayback(paybackItems = []) {
+  const tableBody = document.getElementById('paybackTableBody');
   if (!tableBody) return;
 
-  tableBody.innerHTML = "<tr><td colspan='6'>Загрузка...</td></tr>";
-
-  try {
-    const res = await fetch("/api/finance/item-payback");
-    const data = await res.json();
-
-    tableBody.innerHTML = "";
-
-    data.forEach(item => {
-      const payback = item.purchase_price > 0
-        ? ((item.profit / item.purchase_price) * 100).toFixed(1)
-        : 0;
-
-      const row = document.createElement("tr");
-
-      row.innerHTML = `
-        <td>${item.name}</td>
-        <td>${Number(item.purchase_price || 0).toLocaleString()}</td>
-        <td>${Number(item.revenue || 0).toLocaleString()}</td>
-        <td>${Number(item.expenses || 0).toLocaleString()}</td>
-        <td>${Number(item.profit || 0).toLocaleString()}</td>
-        <td>${payback}%</td>
-      `;
-
-      tableBody.appendChild(row);
-    });
-
-  } catch (error) {
-    console.error("Payback load error:", error);
-    tableBody.innerHTML = "<tr><td colspan='6'>Ошибка загрузки данных</td></tr>";
+  if (!paybackItems.length) {
+    tableBody.innerHTML = "<tr><td colspan='6' class='empty'>Пока нет данных для аналитики</td></tr>";
+    return;
   }
+
+  const { formatMoney, formatPercent } = window.crmApp || {};
+
+  tableBody.innerHTML = paybackItems
+    .map(
+      item => `
+      <tr>
+        <td>${item.name || '-'}</td>
+        <td>${formatMoney ? formatMoney(item.purchase_price) : Number(item.purchase_price || 0).toLocaleString()}</td>
+        <td>${formatMoney ? formatMoney(item.revenue_total) : Number(item.revenue_total || 0).toLocaleString()}</td>
+        <td>${formatMoney ? formatMoney(item.direct_expenses_total) : Number(item.direct_expenses_total || 0).toLocaleString()}</td>
+        <td>${formatMoney ? formatMoney(item.profit_total) : Number(item.profit_total || 0).toLocaleString()}</td>
+        <td>${formatPercent ? formatPercent(item.payback_percent) : `${Number(item.payback_percent || 0).toFixed(1)}%`}</td>
+      </tr>
+    `
+    )
+    .join('');
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  loadEquipmentPayback();
+function syncAnalyticsFromAppState() {
+  const appState = window.crmApp?.getState?.();
+  renderAnalyticsPayback(appState?.payback || []);
+}
+
+document.addEventListener('crm:data-loaded', event => {
+  renderAnalyticsPayback(event.detail?.payback || []);
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  syncAnalyticsFromAppState();
 });
