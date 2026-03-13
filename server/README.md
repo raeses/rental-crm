@@ -11,6 +11,15 @@ mysql -u root -p rental_crm < sql/seed.sql
 npm start
 ```
 
+## Existing DB Migration
+If the server already has an older `rental` database with a legacy `items` table, apply the items migration instead of rerunning the full schema:
+
+```bash
+mysql rental < sql/migrations/20260314_items_mvp.sql
+```
+
+Then restart the backend process.
+
 ## API examples
 
 ### Create project
