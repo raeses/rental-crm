@@ -14,6 +14,17 @@ const state = {
   subrentals: []
 };
 
+const LEGACY_API_LABELS = {
+  '/items': 'Техника',
+  '/clients': 'Клиенты',
+  '/transactions': 'Финансы',
+  '/finance/summary': 'Финансовая сводка',
+  '/finance/item-payback': 'Аналитика окупаемости',
+  '/rental-items': 'Техника в проекте',
+  '/subrentals': 'Субаренда',
+  '/rentals': 'Проекты (legacy)'
+};
+
 function normalizeProjectForLegacyUi(project = {}) {
   return {
     ...project,
@@ -71,10 +82,46 @@ function getStatusPill(status) {
   return `<span class="pill ${cls}">${status || '-'}</span>`;
 }
 
+function getFeatureLabel(path) {
+  return LEGACY_API_LABELS[path] || path;
+}
+
+async function readApiPayload(res) {
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    return res.json().catch(() => null);
+  }
+
+  const text = await res.text().catch(() => '');
+  return text ? { rawText: text } : null;
+}
+
+function buildApiError(path, res, payload, fallbackMessage) {
+  const backendMessage =
+    payload && typeof payload === 'object' && 'error' in payload
+      ? payload.error
+      : null;
+
+  if (backendMessage) {
+    return new Error(backendMessage);
+  }
+
+  if (res.status === 404) {
+    return new Error(`Раздел "${getFeatureLabel(path)}" пока не подключен к текущему backend.`);
+  }
+
+  if (res.status >= 500) {
+    return new Error(`Сервер временно недоступен для "${getFeatureLabel(path)}".`);
+  }
+
+  return new Error(fallbackMessage);
+}
+
 async function apiGet(path) {
   const res = await fetch(API + path);
-  if (!res.ok) throw new Error(`Ошибка загрузки: ${path}`);
-  return res.json();
+  const payload = await readApiPayload(res);
+  if (!res.ok) throw buildApiError(path, res, payload, `Ошибка загрузки: ${path}`);
+  return payload;
 }
 
 async function apiPost(path, body) {
@@ -84,9 +131,9 @@ async function apiPost(path, body) {
     body: JSON.stringify(body)
   });
 
-  const data = await res.json();
+  const data = await readApiPayload(res);
   if (!res.ok) {
-    throw new Error(data.error || 'Ошибка сохранения');
+    throw buildApiError(path, res, data, 'Ошибка сохранения');
   }
 
   return data;
