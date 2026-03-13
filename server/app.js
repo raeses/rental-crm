@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import projectsRoutes from './routes/projectsRoutes.js';
 import estimatesRoutes from './routes/estimatesRoutes.js';
+import itemsRoutes from './routes/itemsRoutes.js';
 
 dotenv.config();
 
@@ -13,6 +14,7 @@ app.use(express.json());
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
+app.use('/api/items', itemsRoutes);
 app.use('/api/projects', projectsRoutes);
 app.use('/api', estimatesRoutes);
 

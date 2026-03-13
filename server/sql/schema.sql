@@ -11,6 +11,21 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  category VARCHAR(255) NOT NULL,
+  price DECIMAL(12,2) DEFAULT 0,
+  base_rate DECIMAL(12,2) DEFAULT 0,
+  purchase_price DECIMAL(12,2) DEFAULT 0,
+  purchase_date DATE NULL,
+  status ENUM('available','unavailable','maintenance') DEFAULT 'available',
+  owner_type ENUM('own','partner') DEFAULT 'own',
+  serial_number VARCHAR(255) NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS estimates (
   id INT AUTO_INCREMENT PRIMARY KEY,
   project_id INT NOT NULL,
@@ -56,3 +71,5 @@ CREATE TABLE IF NOT EXISTS estimate_items (
 CREATE INDEX idx_estimates_project_id ON estimates(project_id);
 CREATE INDEX idx_estimate_items_estimate_id ON estimate_items(estimate_id);
 CREATE INDEX idx_estimate_items_position_order ON estimate_items(position_order);
+CREATE INDEX idx_items_category ON items(category);
+CREATE INDEX idx_items_status ON items(status);

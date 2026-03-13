@@ -87,6 +87,7 @@
                   <th>Статус</th>
                   <th>Выручка</th>
                   <th>Окупаемость</th>
+                  <th>Действия</th>
                 </tr>
               </thead>
               <tbody id="itemsBody"></tbody>
@@ -94,8 +95,9 @@
           </div>
 
           <div class="card">
-            <div class="section-title">Новая техника</div>
+            <div class="section-title" id="itemFormTitle">Новая техника</div>
             <div class="form-grid">
+              <input id="itemId" type="hidden" />
               <input id="itemName" placeholder="Название" />
               <select id="itemCategory">
                 <option value="Camera">Camera</option>
@@ -119,7 +121,8 @@
                 <option value="partner">partner</option>
               </select>
               <input id="itemSerial" class="full" placeholder="Серийный номер" />
-              <button class="primary full" onclick="createItem()">Сохранить технику</button>
+              <button class="primary full" id="itemSaveButton" onclick="createItem()">Сохранить технику</button>
+              <button class="secondary full hidden" id="itemCancelButton" onclick="cancelItemEdit()">Отменить редактирование</button>
             </div>
           </div>
         </div>

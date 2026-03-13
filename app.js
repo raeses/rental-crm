@@ -141,6 +141,21 @@ async function apiPost(path, body) {
   return data;
 }
 
+async function apiPut(path, body) {
+  const res = await fetch(API + path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  const data = await readApiPayload(res);
+  if (!res.ok) {
+    throw buildApiError(path, res, data, 'Ошибка обновления');
+  }
+
+  return data;
+}
+
 
 async function apiGetSafe(path, fallback = null) {
   try {
@@ -309,7 +324,7 @@ function renderItems() {
   const body = document.getElementById('itemsBody');
 
   if (!state.items.length) {
-    body.innerHTML = '<tr><td colspan="6" class="empty">Пока нет техники.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="empty">Пока нет техники.</td></tr>';
     return;
   }
 
@@ -323,10 +338,54 @@ function renderItems() {
         <td>${getStatusPill(item.status)}</td>
         <td>${formatMoney(item.revenue_total)}</td>
         <td>${formatPercent(item.payback_percent)}</td>
+        <td><button class="secondary" onclick="editItem(${Number(item.id)})">Редактировать</button></td>
       </tr>
     `
     )
     .join('');
+}
+
+function resetItemForm() {
+  document.getElementById('itemId').value = '';
+  document.getElementById('itemName').value = '';
+  document.getElementById('itemCategory').value = 'Camera';
+  document.getElementById('itemPrice').value = '';
+  document.getElementById('itemBaseRate').value = '';
+  document.getElementById('itemPurchasePrice').value = '';
+  document.getElementById('itemPurchaseDate').value = '';
+  document.getElementById('itemStatus').value = 'available';
+  document.getElementById('itemOwnerType').value = 'own';
+  document.getElementById('itemSerial').value = '';
+  document.getElementById('itemFormTitle').textContent = 'Новая техника';
+  document.getElementById('itemSaveButton').textContent = 'Сохранить технику';
+  document.getElementById('itemCancelButton').classList.add('hidden');
+}
+
+function populateItemForm(item) {
+  document.getElementById('itemId').value = item.id || '';
+  document.getElementById('itemName').value = item.name || '';
+  document.getElementById('itemCategory').value = item.category || 'Camera';
+  document.getElementById('itemPrice').value = item.price ?? '';
+  document.getElementById('itemBaseRate').value = item.base_rate ?? '';
+  document.getElementById('itemPurchasePrice').value = item.purchase_price ?? '';
+  document.getElementById('itemPurchaseDate').value = item.purchase_date ? String(item.purchase_date).slice(0, 10) : '';
+  document.getElementById('itemStatus').value = item.status || 'available';
+  document.getElementById('itemOwnerType').value = item.owner_type || 'own';
+  document.getElementById('itemSerial').value = item.serial_number || '';
+  document.getElementById('itemFormTitle').textContent = 'Редактирование техники';
+  document.getElementById('itemSaveButton').textContent = 'Сохранить изменения';
+  document.getElementById('itemCancelButton').classList.remove('hidden');
+}
+
+function editItem(itemId) {
+  const item = state.items.find(entry => Number(entry.id) === Number(itemId));
+  if (!item) return;
+  populateItemForm(item);
+  document.getElementById('page-items')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function cancelItemEdit() {
+  resetItemForm();
 }
 
 function renderProjects() {
@@ -653,7 +712,8 @@ async function createClient() {
 
 async function createItem() {
   try {
-    await apiPost('/items', {
+    const itemId = document.getElementById('itemId').value;
+    const payload = {
       name: document.getElementById('itemName').value.trim(),
       category: document.getElementById('itemCategory').value.trim(),
       price: Number(document.getElementById('itemPrice').value || 0),
@@ -663,18 +723,18 @@ async function createItem() {
       status: document.getElementById('itemStatus').value,
       owner_type: document.getElementById('itemOwnerType').value,
       serial_number: document.getElementById('itemSerial').value.trim()
-    });
+    };
 
-    document.getElementById('itemName').value = '';
-    document.getElementById('itemCategory').value = '';
-    document.getElementById('itemPrice').value = '';
-    document.getElementById('itemBaseRate').value = '';
-    document.getElementById('itemPurchasePrice').value = '';
-    document.getElementById('itemPurchaseDate').value = '';
-    document.getElementById('itemSerial').value = '';
+    if (itemId) {
+      await apiPut(`/items/${itemId}`, payload);
+    } else {
+      await apiPost('/items', payload);
+    }
+
+    resetItemForm();
 
     await loadAllData();
-    alert('Техника сохранена');
+    alert(itemId ? 'Техника обновлена' : 'Техника сохранена');
   } catch (error) {
     alert(error.message);
   }
@@ -1203,6 +1263,10 @@ window.crmApp = {
   openEstimateModal
 };
 
+window.editItem = editItem;
+window.cancelItemEdit = cancelItemEdit;
+
 setupNavigation();
 setupProjectDateGuard();
+resetItemForm();
 loadAllData({ silent: true });
