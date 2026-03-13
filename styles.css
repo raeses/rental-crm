@@ -294,6 +294,13 @@
       margin: 0;
       font-size: 24px;
     }
+
+    .estimate-modal {
+      width: min(980px, 100%);
+    }
+    .estimate-controls {
+      align-items: center;
+    }
     .project-row {
       cursor: pointer;
     }
