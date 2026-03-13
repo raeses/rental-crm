@@ -349,7 +349,7 @@ function renderSubrentals() {
     .map(subrental => {
       const rental = state.rentals.find(r => Number(r.id) === Number(subrental.project_id));
       const { supplierTotal, clientTotal, margin } = getSubrentalDerivedValues(subrental);
-      const rowClass = margin < 0 ? 'negative' : 'positive';
+      const rowClass = margin < 0 ? 'negative' : (margin > 0 ? 'positive' : 'neutral');
 
       return `
         <tr class="subrental-row ${rowClass}">
@@ -526,7 +526,11 @@ function fillSelects() {
     .concat(state.rentals.map(r => `<option value="${r.id}">${r.title}</option>`))
     .join('');
   document.getElementById('txRental').innerHTML = rentalOptions;
-  document.getElementById('subrentalProject').innerHTML = rentalOptions;
+
+  const subrentalProject = document.getElementById('subrentalProject');
+  if (subrentalProject) {
+    subrentalProject.innerHTML = rentalOptions;
+  }
 
   const itemOptions = ['<option value="">Не выбрано</option>']
     .concat(state.items.map(i => `<option value="${i.id}">${i.name}</option>`))
@@ -799,9 +803,12 @@ function setupNavigation() {
     }
   });
 
-  document.getElementById('projectModalOverlay').addEventListener('click', event => {
-    if (event.target.id === 'projectModalOverlay') closeProjectModal();
-  });
+  const projectModalOverlay = document.getElementById('projectModalOverlay');
+  if (projectModalOverlay) {
+    projectModalOverlay.addEventListener('click', event => {
+      if (event.target.id === 'projectModalOverlay') closeProjectModal();
+    });
+  }
 }
 
 
