@@ -307,6 +307,9 @@
     .subrental-row.positive td {
       background: rgba(29,185,84,.08);
     }
+    .subrental-row.neutral td {
+      background: transparent;
+    }
     .actions-inline {
       display: inline-flex;
       gap: 8px;
