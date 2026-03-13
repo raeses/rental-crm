@@ -14,6 +14,8 @@ const state = {
   subrentals: []
 };
 
+let loadAllDataPromise = null;
+
 const LEGACY_API_LABELS = {
   '/items': 'Техника',
   '/clients': 'Клиенты',
@@ -184,34 +186,44 @@ function ensureRentalEstimates(rentalId) {
   return state.estimatesByRental[id];
 }
 
-async function loadAllData() {
-  try {
-    const [projects, items, clients, transactions, financeSummary, payback, rentalItems, subrentals] = await Promise.all([
-      apiGet('/projects'),
-      apiGetSafe('/items', []),
-      apiGetSafe('/clients', []),
-      apiGetSafe('/transactions', []),
-      apiGetSafe('/finance/summary', {}),
-      apiGetSafe('/finance/item-payback', []),
-      apiGetSafe('/rental-items', []),
-      apiGetSafe('/subrentals', [])
-    ]);
+async function loadAllData(options = {}) {
+  const { silent = false } = options;
 
-    state.items = Array.isArray(items) ? items : [];
-    state.rentals = (Array.isArray(projects) ? projects : []).map(normalizeProjectForLegacyUi);
-    state.clients = Array.isArray(clients) ? clients : [];
-    state.transactions = Array.isArray(transactions) ? transactions : [];
-    state.financeSummary = financeSummary || {};
-    state.payback = (Array.isArray(payback) ? payback : []).map(normalizePaybackItem);
-    state.rentalItems = Array.isArray(rentalItems) ? rentalItems : [];
-    state.subrentals = Array.isArray(subrentals) ? subrentals : [];
+  if (loadAllDataPromise) return loadAllDataPromise;
 
-    renderAll();
-    notifyDataLoaded();
-  } catch (error) {
-    alert(error.message);
-    console.error(error);
-  }
+  loadAllDataPromise = (async () => {
+    try {
+      const [projects, items, clients, transactions, financeSummary, payback, rentalItems, subrentals] = await Promise.all([
+        apiGet('/projects'),
+        apiGetSafe('/items', []),
+        apiGetSafe('/clients', []),
+        apiGetSafe('/transactions', []),
+        apiGetSafe('/finance/summary', {}),
+        apiGetSafe('/finance/item-payback', []),
+        apiGetSafe('/rental-items', []),
+        apiGetSafe('/subrentals', [])
+      ]);
+
+      state.items = Array.isArray(items) ? items : [];
+      state.rentals = (Array.isArray(projects) ? projects : []).map(normalizeProjectForLegacyUi);
+      state.clients = Array.isArray(clients) ? clients : [];
+      state.transactions = Array.isArray(transactions) ? transactions : [];
+      state.financeSummary = financeSummary || {};
+      state.payback = (Array.isArray(payback) ? payback : []).map(normalizePaybackItem);
+      state.rentalItems = Array.isArray(rentalItems) ? rentalItems : [];
+      state.subrentals = Array.isArray(subrentals) ? subrentals : [];
+
+      renderAll();
+      notifyDataLoaded();
+    } catch (error) {
+      if (!silent) alert(error.message);
+      console.error(error);
+    } finally {
+      loadAllDataPromise = null;
+    }
+  })();
+
+  return loadAllDataPromise;
 }
 
 function renderAll() {
@@ -1139,6 +1151,7 @@ function setupNavigation() {
       const page = btn.dataset.page;
       document.querySelectorAll('main > section').forEach(section => section.classList.add('hidden'));
       document.getElementById(`page-${page}`).classList.remove('hidden');
+      document.dispatchEvent(new CustomEvent('crm:page-change', { detail: { page } }));
 
       closeSidebar();
     });
@@ -1192,4 +1205,4 @@ window.crmApp = {
 
 setupNavigation();
 setupProjectDateGuard();
-loadAllData();
+loadAllData({ silent: true });
