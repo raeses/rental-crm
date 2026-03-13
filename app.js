@@ -14,6 +14,24 @@ const state = {
   subrentals: []
 };
 
+function normalizeProjectForLegacyUi(project = {}) {
+  return {
+    ...project,
+    title: project.title || project.name || '',
+    client_name: project.client || '',
+    total: Number(project.total || 0),
+    paid_amount: Number(project.paid_amount || 0),
+    payment_status: project.payment_status || project.status || 'draft'
+  };
+}
+
+function mapLegacyProjectStatus(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'new') return 'draft';
+  if (normalized === 'cancelled') return 'closed';
+  return normalized || 'draft';
+}
+
 function formatMoney(value) {
   const num = Number(value || 0);
   return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(num)} ₽`;
@@ -121,19 +139,19 @@ function ensureRentalEstimates(rentalId) {
 
 async function loadAllData() {
   try {
-    const [items, rentals, clients, transactions, financeSummary, payback, rentalItems, subrentals] = await Promise.all([
-      apiGet('/items'),
-      apiGet('/rentals'),
-      apiGet('/clients'),
-      apiGet('/transactions'),
-      apiGet('/finance/summary'),
-      apiGet('/finance/item-payback'),
+    const [projects, items, clients, transactions, financeSummary, payback, rentalItems, subrentals] = await Promise.all([
+      apiGet('/projects'),
+      apiGetSafe('/items', []),
+      apiGetSafe('/clients', []),
+      apiGetSafe('/transactions', []),
+      apiGetSafe('/finance/summary', {}),
+      apiGetSafe('/finance/item-payback', []),
       apiGetSafe('/rental-items', []),
       apiGetSafe('/subrentals', [])
     ]);
 
     state.items = Array.isArray(items) ? items : [];
-    state.rentals = Array.isArray(rentals) ? rentals : [];
+    state.rentals = (Array.isArray(projects) ? projects : []).map(normalizeProjectForLegacyUi);
     state.clients = Array.isArray(clients) ? clients : [];
     state.transactions = Array.isArray(transactions) ? transactions : [];
     state.financeSummary = financeSummary || {};
@@ -263,11 +281,12 @@ function renderProjects() {
   body.innerHTML = state.rentals
     .map(rental => {
       const client = state.clients.find(c => Number(c.id) === Number(rental.client_id));
+      const clientName = rental.client_name || rental.client || (client ? client.name : '-');
 
       return `
         <tr class="project-row" onclick="openProjectModal(${Number(rental.id)})">
           <td>${rental.title || '-'}</td>
-          <td>${client ? client.name : '-'}</td>
+          <td>${clientName || '-'}</td>
           <td>${rental.start_date || '-'}<br><span class="muted">${rental.end_date || '-'}</span></td>
           <td>${formatMoney(rental.total)}</td>
           <td>${formatMoney(rental.paid_amount || 0)}</td>
@@ -521,13 +540,15 @@ async function editSubrental(id) {
 }
 
 function fillSelects() {
-  const clientOptions = ['<option value="">Без клиента</option>']
-    .concat(state.clients.map(c => `<option value="${c.id}">${c.name}</option>`))
-    .join('');
+  const clientOptions = state.clients.length
+    ? ['<option value="">Без клиента</option>']
+      .concat(state.clients.map(c => `<option value="${c.id}">${c.name}</option>`))
+      .join('')
+    : '<option value="">Клиенты пока недоступны</option>';
   document.getElementById('rentalClient').innerHTML = clientOptions;
 
   const rentalOptions = ['<option value="">Не выбрано</option>']
-    .concat(state.rentals.map(r => `<option value="${r.id}">${r.title}</option>`))
+    .concat(state.rentals.map(r => `<option value="${r.id}">${r.title || r.name || `Проект #${r.id}`}</option>`))
     .join('');
   document.getElementById('txRental').innerHTML = rentalOptions;
 
@@ -604,6 +625,14 @@ async function createRental() {
   try {
     const startDate = document.getElementById('rentalStart').value || null;
     const endDate = document.getElementById('rentalEnd').value || null;
+    const projectName = document.getElementById('rentalTitle').value.trim();
+    const clientSelect = document.getElementById('rentalClient');
+    const selectedClientName = clientSelect?.selectedOptions?.[0]?.textContent?.trim();
+
+    if (!projectName) {
+      alert('Укажи название проекта.');
+      return;
+    }
 
     if (startDate && isPastDate(startDate)) {
       alert('Нельзя создать проект в прошлом. Выбери сегодняшнюю дату или будущее.');
@@ -620,12 +649,12 @@ async function createRental() {
       return;
     }
 
-    await apiPost('/rentals', {
-      client_id: document.getElementById('rentalClient').value || null,
-      title: document.getElementById('rentalTitle').value.trim(),
+    await apiPost('/projects', {
+      name: projectName,
+      client: clientSelect?.value ? selectedClientName : null,
       start_date: startDate,
       end_date: endDate,
-      status: document.getElementById('rentalStatus').value
+      status: mapLegacyProjectStatus(document.getElementById('rentalStatus').value)
     });
 
     document.getElementById('rentalTitle').value = '';
