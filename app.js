@@ -14,6 +14,17 @@ const state = {
   subrentals: []
 };
 
+const ITEM_STATUS_LABELS = {
+  available: 'Доступна',
+  unavailable: 'Недоступна',
+  maintenance: 'На обслуживании'
+};
+
+const ITEM_OWNER_TYPE_LABELS = {
+  own: 'Собственная',
+  partner: 'Партнерская'
+};
+
 let loadAllDataPromise = null;
 
 const LEGACY_API_LABELS = {
@@ -55,6 +66,14 @@ function formatPercent(value) {
   return `${num.toFixed(1)}%`;
 }
 
+function getItemStatusLabel(status) {
+  return ITEM_STATUS_LABELS[String(status || '').toLowerCase()] || status || '-';
+}
+
+function getItemOwnerTypeLabel(ownerType) {
+  return ITEM_OWNER_TYPE_LABELS[String(ownerType || '').toLowerCase()] || ownerType || '-';
+}
+
 function normalizePaybackItem(item = {}) {
   const purchasePrice = Number(item.purchase_price || 0);
   const revenueTotal = Number(item.revenue_total ?? item.revenue ?? 0);
@@ -82,6 +101,16 @@ function getStatusPill(status) {
   if (['unavailable', 'cancelled', 'unpaid', 'lost', 'expense'].includes(normalized)) cls = 'red';
 
   return `<span class="pill ${cls}">${status || '-'}</span>`;
+}
+
+function getStatusPillWithLabel(status, label) {
+  const normalized = String(status || '').toLowerCase();
+  let cls = 'yellow';
+
+  if (['available', 'paid', 'active', 'confirmed', 'income'].includes(normalized)) cls = 'green';
+  if (['unavailable', 'cancelled', 'unpaid', 'lost', 'expense'].includes(normalized)) cls = 'red';
+
+  return `<span class="pill ${cls}">${label || status || '-'}</span>`;
 }
 
 function getFeatureLabel(path) {
@@ -335,7 +364,7 @@ function renderItems() {
         <td>${item.name || '-'}</td>
         <td>${item.category || '-'}</td>
         <td>${formatMoney(item.base_rate || item.price)}</td>
-        <td>${getStatusPill(item.status)}</td>
+        <td>${getStatusPillWithLabel(item.status, getItemStatusLabel(item.status))}</td>
         <td>${formatMoney(item.revenue_total)}</td>
         <td>${formatPercent(item.payback_percent)}</td>
         <td><button class="secondary" onclick="openItemModal(${Number(item.id)})">Редактировать</button></td>
@@ -387,6 +416,51 @@ function renderItemUsageHistory(history = []) {
     .join('');
 }
 
+function updateItemMoneyHints() {
+  const hintMap = [
+    ['itemModalPrice', 'itemModalPriceHelp'],
+    ['itemModalBaseRate', 'itemModalBaseRateHelp'],
+    ['itemModalPurchasePrice', 'itemModalPurchasePriceHelp']
+  ];
+
+  hintMap.forEach(([inputId, helpId]) => {
+    const input = document.getElementById(inputId);
+    const help = document.getElementById(helpId);
+    if (!input || !help) return;
+    help.textContent = formatMoney(input.value || 0);
+  });
+}
+
+function renderItemStats(item) {
+  const stats = document.getElementById('itemModalStats');
+  if (!stats) return;
+
+  const history = item.usage_history || [];
+  const totalShifts = history.reduce((sum, entry) => sum + Number(entry.days || 0), 0);
+  const totalWorkDays = history.reduce((sum, entry) => sum + Number(entry.days || 0) * Number(entry.quantity || 0), 0);
+  const totalRevenue = history.reduce((sum, entry) => sum + Number(entry.line_total || 0), 0);
+
+  stats.innerHTML = [
+    ['Стоимость покупки', formatMoney(item.purchase_price)],
+    ['Базовая ставка', formatMoney(item.base_rate || item.price)],
+    ['Тип владения', getItemOwnerTypeLabel(item.owner_type)],
+    ['Статус', getItemStatusLabel(item.status)],
+    ['Отработано смен', String(totalShifts)],
+    ['Единиц x смен', String(totalWorkDays)],
+    ['Доход по сметам', formatMoney(totalRevenue)],
+    ['Использований в сметах', String(history.length)]
+  ]
+    .map(
+      ([label, value]) => `
+        <div class="card">
+          <div class="card-label">${label}</div>
+          <div class="card-value" style="font-size: 22px;">${value}</div>
+        </div>
+      `
+    )
+    .join('');
+}
+
 function populateItemModal(item) {
   document.getElementById('itemModalId').value = item.id || '';
   document.getElementById('itemModalName').value = item.name || '';
@@ -400,7 +474,9 @@ function populateItemModal(item) {
   document.getElementById('itemModalSerial').value = item.serial_number || '';
   document.getElementById('itemModalTitle').textContent = item.name || 'Техника';
   document.getElementById('itemModalSubtitle').textContent = `ID: ${item.id}`;
+  renderItemStats(item);
   renderItemUsageHistory(item.usage_history || []);
+  updateItemMoneyHints();
 }
 
 async function openItemModal(itemId) {
@@ -1297,6 +1373,11 @@ function setupNavigation() {
       if (event.target.id === 'itemModalOverlay') closeItemModal();
     });
   }
+
+  ['itemModalPrice', 'itemModalBaseRate', 'itemModalPurchasePrice'].forEach(inputId => {
+    const input = document.getElementById(inputId);
+    if (input) input.addEventListener('input', updateItemMoneyHints);
+  });
 
   const estimateSelect = document.getElementById('projectEstimateSelect');
   if (estimateSelect) {
