@@ -253,7 +253,7 @@
     .field-group {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
     }
     .field-label {
       color: var(--muted);
@@ -264,6 +264,7 @@
       color: var(--muted);
       font-size: 12px;
       line-height: 1.4;
+      padding-top: 2px;
     }
     .two-col {
       display: grid;
@@ -348,11 +349,6 @@
     .totals-grid-item {
       min-height: 110px;
     }
-    .item-stats-grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      margin-bottom: 18px;
-    }
-
     @media (max-width: 980px) {
       :root {
         --sidebar-width: min(86vw, 320px);
@@ -360,7 +356,6 @@
       }
       .content { padding: 16px; }
       .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .item-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .two-col, .form-grid { grid-template-columns: 1fr; }
       .title { font-size: 24px; }
     }
@@ -377,7 +372,6 @@
         font-size: 15px;
       }
       .grid { grid-template-columns: 1fr; }
-      .item-stats-grid { grid-template-columns: 1fr; }
       th:nth-child(4), td:nth-child(4),
       th:nth-child(5), td:nth-child(5),
       th:nth-child(6), td:nth-child(6) {
