@@ -1,7 +1,7 @@
 import pool from '../db/pool.js';
 
 export async function listItems() {
-  const [rows] = await pool.execute('SELECT * FROM items ORDER BY id DESC');
+  const [rows] = await pool.execute('SELECT * FROM items ORDER BY is_archived ASC, id DESC');
   return rows;
 }
 
@@ -51,8 +51,8 @@ export async function getItemDetailsById(id) {
 export async function createItem(data) {
   const [result] = await pool.execute(
     `INSERT INTO items
-      (name, category, price, base_rate, purchase_price, purchase_date, status, owner_type, serial_number)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (name, category, price, base_rate, purchase_price, purchase_date, status, is_archived, archived_at, owner_type, serial_number)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       data.name,
       data.category,
@@ -61,6 +61,8 @@ export async function createItem(data) {
       Number(data.purchase_price || 0),
       data.purchase_date || null,
       data.status || 'available',
+      Boolean(data.is_archived),
+      data.is_archived ? new Date() : null,
       data.owner_type || 'own',
       data.serial_number || null
     ]
@@ -86,6 +88,18 @@ export async function updateItem(id, data) {
       data.serial_number || null,
       id
     ]
+  );
+
+  if (!result.affectedRows) return null;
+  return getItemById(id);
+}
+
+export async function setItemArchived(id, isArchived) {
+  const [result] = await pool.execute(
+    `UPDATE items
+     SET is_archived=?, archived_at=?
+     WHERE id=?`,
+    [Boolean(isArchived), isArchived ? new Date() : null, id]
   );
 
   if (!result.affectedRows) return null;

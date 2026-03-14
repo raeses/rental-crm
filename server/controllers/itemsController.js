@@ -1,4 +1,4 @@
-import { createItem, getItemDetailsById, listItems, updateItem } from '../services/itemService.js';
+import { createItem, getItemDetailsById, listItems, setItemArchived, updateItem } from '../services/itemService.js';
 import { assertNonNegativeNumber, assertRequiredString } from '../utils/validation.js';
 
 const VALID_STATUSES = new Set(['available', 'unavailable', 'maintenance']);
@@ -57,6 +57,26 @@ export async function updateItemHandler(req, res, next) {
   try {
     validateItemBody(req.body);
     const item = await updateItem(req.params.id, req.body);
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+    return res.json(item);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function archiveItemHandler(req, res, next) {
+  try {
+    const item = await setItemArchived(req.params.id, true);
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+    return res.json(item);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function restoreItemHandler(req, res, next) {
+  try {
+    const item = await setItemArchived(req.params.id, false);
     if (!item) return res.status(404).json({ error: 'Item not found' });
     return res.json(item);
   } catch (error) {

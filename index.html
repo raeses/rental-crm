@@ -76,6 +76,19 @@
           </div>
         </div>
 
+        <div class="toolbar">
+          <select id="itemCategoryFilter">
+            <option value="all">Все категории</option>
+          </select>
+          <select id="itemLifecycleFilter">
+            <option value="active">Активная техника</option>
+            <option value="available">Рабочая техника</option>
+            <option value="maintenance">В ремонте</option>
+            <option value="archived">В архиве</option>
+            <option value="all">Все позиции</option>
+          </select>
+        </div>
+
         <div class="two-col">
           <div class="table-wrap">
             <table>
@@ -594,7 +607,10 @@
           <span class="field-label">Серийный номер</span>
           <input id="itemModalSerial" placeholder="Серийный номер" />
         </label>
-        <button class="primary full" onclick="saveItemFromModal()">Сохранить изменения</button>
+        <div class="actions-inline full modal-actions-row">
+          <button class="secondary" id="itemArchiveButton" onclick="toggleItemArchive()">Перенести в архив</button>
+          <button class="primary" onclick="saveItemFromModal()">Сохранить изменения</button>
+        </div>
       </div>
 
       <div class="section-title">История работы техники</div>

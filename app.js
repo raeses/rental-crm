@@ -17,7 +17,8 @@ const state = {
 const ITEM_STATUS_LABELS = {
   available: 'Доступна',
   unavailable: 'Недоступна',
-  maintenance: 'На обслуживании'
+  maintenance: 'На обслуживании',
+  archived: 'В архиве'
 };
 
 const ITEM_OWNER_TYPE_LABELS = {
@@ -26,6 +27,10 @@ const ITEM_OWNER_TYPE_LABELS = {
 };
 
 let loadAllDataPromise = null;
+const itemFilters = {
+  category: 'all',
+  lifecycle: 'active'
+};
 
 const LEGACY_API_LABELS = {
   '/items': 'Техника',
@@ -70,6 +75,18 @@ function getItemStatusLabel(status) {
   return ITEM_STATUS_LABELS[String(status || '').toLowerCase()] || status || '-';
 }
 
+function isItemArchived(item = {}) {
+  if (Boolean(Number(item.is_archived)) || item.is_archived === true) {
+    return true;
+  }
+
+  const itemId = Number(item.id || item.item_id || 0);
+  if (!itemId) return false;
+
+  const matchedItem = state.items.find(entry => Number(entry.id) === itemId);
+  return Boolean(matchedItem && (Boolean(Number(matchedItem.is_archived)) || matchedItem.is_archived === true));
+}
+
 function getItemOwnerTypeLabel(ownerType) {
   return ITEM_OWNER_TYPE_LABELS[String(ownerType || '').toLowerCase()] || ownerType || '-';
 }
@@ -97,6 +114,7 @@ function getStatusPill(status) {
   const normalized = String(status || '').toLowerCase();
   let cls = 'yellow';
 
+  if (normalized === 'archived') cls = 'gray';
   if (['available', 'paid', 'active', 'confirmed', 'income'].includes(normalized)) cls = 'green';
   if (['unavailable', 'cancelled', 'unpaid', 'lost', 'expense'].includes(normalized)) cls = 'red';
 
@@ -107,6 +125,7 @@ function getStatusPillWithLabel(status, label) {
   const normalized = String(status || '').toLowerCase();
   let cls = 'yellow';
 
+  if (normalized === 'archived') cls = 'gray';
   if (['available', 'paid', 'active', 'confirmed', 'income'].includes(normalized)) cls = 'green';
   if (['unavailable', 'cancelled', 'unpaid', 'lost', 'expense'].includes(normalized)) cls = 'red';
 
@@ -274,6 +293,7 @@ function renderAll() {
   renderSummaryCards();
   renderDashboardPayback();
   renderDashboardNotes();
+  populateItemFilters();
   renderItems();
   renderProjects();
   renderClients();
@@ -281,6 +301,15 @@ function renderAll() {
   renderSubrentals();
   renderSubrentalsTotals();
   fillSelects();
+}
+
+function populateItemFilters() {
+  const categoryFilter = document.getElementById('itemCategoryFilter');
+  if (!categoryFilter) return;
+
+  const categories = [...new Set(state.items.map(item => item.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru'));
+  categoryFilter.innerHTML = ['<option value="all">Все категории</option>', ...categories.map(category => `<option value="${category}">${category}</option>`)].join('');
+  categoryFilter.value = itemFilters.category;
 }
 
 function renderSummaryCards() {
@@ -308,13 +337,14 @@ function renderSummaryCards() {
 
 function renderDashboardPayback() {
   const body = document.getElementById('dashboardPaybackBody');
+  const paybackItems = state.payback.filter(item => !isItemArchived(item));
 
-  if (!state.payback.length) {
+  if (!paybackItems.length) {
     body.innerHTML = '<tr><td colspan="6" class="empty">Пока нет данных по окупаемости.</td></tr>';
     return;
   }
 
-  body.innerHTML = state.payback
+  body.innerHTML = paybackItems
     .slice(0, 8)
     .map(
       item => `
@@ -333,14 +363,15 @@ function renderDashboardPayback() {
 
 function renderDashboardNotes() {
   const box = document.getElementById('dashboardNotes');
+  const paybackItems = state.payback.filter(item => !isItemArchived(item));
 
-  if (!state.payback.length) {
+  if (!paybackItems.length) {
     box.textContent = 'Сначала добавь технику, проекты и операции. Потом здесь появятся подсказки по окупаемости.';
     return;
   }
 
-  const best = [...state.payback].sort((a, b) => Number(b.payback_percent || 0) - Number(a.payback_percent || 0))[0];
-  const worst = [...state.payback].sort((a, b) => Number(a.payback_percent || 0) - Number(b.payback_percent || 0))[0];
+  const best = [...paybackItems].sort((a, b) => Number(b.payback_percent || 0) - Number(a.payback_percent || 0))[0];
+  const worst = [...paybackItems].sort((a, b) => Number(a.payback_percent || 0) - Number(b.payback_percent || 0))[0];
 
   box.innerHTML = `
     <p>Самая быстрая по окупаемости сейчас: <strong>${best.name || '-'}</strong> — ${formatPercent(best.payback_percent)}.</p>
@@ -351,20 +382,24 @@ function renderDashboardNotes() {
 
 function renderItems() {
   const body = document.getElementById('itemsBody');
+  const filteredItems = getFilteredItems();
 
-  if (!state.items.length) {
-    body.innerHTML = '<tr><td colspan="7" class="empty">Пока нет техники.</td></tr>';
+  if (!filteredItems.length) {
+    const emptyMessage = state.items.length
+      ? 'По текущим фильтрам техника не найдена.'
+      : 'Пока нет техники.';
+    body.innerHTML = `<tr><td colspan="7" class="empty">${emptyMessage}</td></tr>`;
     return;
   }
 
-  body.innerHTML = state.items
+  body.innerHTML = filteredItems
     .map(
       item => `
       <tr>
         <td>${item.name || '-'}</td>
         <td>${item.category || '-'}</td>
         <td>${formatMoney(item.base_rate || item.price)}</td>
-        <td>${getStatusPillWithLabel(item.status, getItemStatusLabel(item.status))}</td>
+        <td>${getStatusPillWithLabel(isItemArchived(item) ? 'archived' : item.status, isItemArchived(item) ? 'В архиве' : getItemStatusLabel(item.status))}</td>
         <td>${formatMoney(item.revenue_total)}</td>
         <td>${formatPercent(item.payback_percent)}</td>
         <td><button class="secondary" onclick="openItemModal(${Number(item.id)})">Редактировать</button></td>
@@ -372,6 +407,21 @@ function renderItems() {
     `
     )
     .join('');
+}
+
+function getFilteredItems() {
+  return state.items.filter(item => {
+    const matchesCategory = itemFilters.category === 'all' || item.category === itemFilters.category;
+    if (!matchesCategory) return false;
+
+    if (itemFilters.lifecycle === 'all') return true;
+    if (itemFilters.lifecycle === 'archived') return isItemArchived(item);
+    if (itemFilters.lifecycle === 'maintenance') return !isItemArchived(item) && item.status === 'maintenance';
+    if (itemFilters.lifecycle === 'available') return !isItemArchived(item) && item.status === 'available';
+    if (itemFilters.lifecycle === 'active') return !isItemArchived(item);
+
+    return true;
+  });
 }
 
 function resetItemForm() {
@@ -434,7 +484,9 @@ function populateItemModal(item) {
   document.getElementById('itemModalOwnerType').value = item.owner_type || 'own';
   document.getElementById('itemModalSerial').value = item.serial_number || '';
   document.getElementById('itemModalTitle').textContent = item.name || 'Техника';
-  document.getElementById('itemModalSubtitle').textContent = `ID: ${item.id}`;
+  document.getElementById('itemModalSubtitle').textContent = isItemArchived(item) ? `ID: ${item.id} · В архиве` : `ID: ${item.id}`;
+  const archiveButton = document.getElementById('itemArchiveButton');
+  if (archiveButton) archiveButton.textContent = isItemArchived(item) ? 'Вернуть из архива' : 'Перенести в архив';
   renderItemUsageHistory(item.usage_history || []);
 }
 
@@ -474,6 +526,31 @@ async function saveItemFromModal() {
     await loadAllData();
     await openItemModal(itemId);
     alert('Техника обновлена');
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function toggleItemArchive() {
+  try {
+    const itemId = document.getElementById('itemModalId').value;
+    if (!itemId) return;
+
+    const currentItem = state.items.find(item => Number(item.id) === Number(itemId));
+    const archived = isItemArchived(currentItem);
+    const path = archived ? `/items/${itemId}/restore` : `/items/${itemId}/archive`;
+
+    await apiPost(path, {});
+    await loadAllData();
+
+    if (archived) {
+      await openItemModal(itemId);
+      alert('Техника возвращена из архива');
+      return;
+    }
+
+    closeItemModal();
+    alert('Техника перенесена в архив');
   } catch (error) {
     alert(error.message);
   }
@@ -803,11 +880,12 @@ async function createClient() {
 
 async function createItem() {
   try {
+    const itemRate = Number(document.getElementById('itemPrice').value || 0);
     const payload = {
       name: document.getElementById('itemName').value.trim(),
       category: document.getElementById('itemCategory').value.trim(),
-      price: Number(document.getElementById('itemPrice').value || 0),
-      base_rate: Number(document.getElementById('itemBaseRate').value || 0),
+      price: itemRate,
+      base_rate: Number(document.getElementById('itemBaseRate').value || itemRate),
       purchase_price: Number(document.getElementById('itemPurchasePrice').value || 0),
       purchase_date: document.getElementById('itemPurchaseDate').value || null,
       status: document.getElementById('itemStatus').value,
@@ -1334,6 +1412,22 @@ function setupNavigation() {
     });
   }
 
+  const itemCategoryFilter = document.getElementById('itemCategoryFilter');
+  if (itemCategoryFilter) {
+    itemCategoryFilter.addEventListener('change', event => {
+      itemFilters.category = event.target.value;
+      renderItems();
+    });
+  }
+
+  const itemLifecycleFilter = document.getElementById('itemLifecycleFilter');
+  if (itemLifecycleFilter) {
+    itemLifecycleFilter.addEventListener('change', event => {
+      itemFilters.lifecycle = event.target.value;
+      renderItems();
+    });
+  }
+
   const estimateSelect = document.getElementById('projectEstimateSelect');
   if (estimateSelect) {
     estimateSelect.addEventListener('change', () => {
@@ -1359,6 +1453,7 @@ window.crmApp = {
 window.openItemModal = openItemModal;
 window.closeItemModal = closeItemModal;
 window.saveItemFromModal = saveItemFromModal;
+window.toggleItemArchive = toggleItemArchive;
 
 setupNavigation();
 setupProjectDateGuard();
