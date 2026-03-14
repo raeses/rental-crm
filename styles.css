@@ -266,6 +266,34 @@
       line-height: 1.4;
       padding-top: 2px;
     }
+    .money-input {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .money-input input {
+      padding-right: 40px;
+    }
+    .money-suffix {
+      position: absolute;
+      right: 14px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+      pointer-events: none;
+    }
+    .section-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .section-meta {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+    }
     .two-col {
       display: grid;
       grid-template-columns: 1.2fr .8fr;

@@ -559,18 +559,24 @@
         </label>
         <label class="field-group">
           <span class="field-label">Цена аренды</span>
-          <input id="itemModalPrice" type="number" step="0.01" placeholder="0" />
-          <span class="field-help" id="itemModalPriceHelp">0 ₽</span>
+          <div class="money-input">
+            <input id="itemModalPrice" type="number" step="0.01" placeholder="0" />
+            <span class="money-suffix">₽</span>
+          </div>
         </label>
         <label class="field-group">
-          <span class="field-label">Базовая ставка</span>
-          <input id="itemModalBaseRate" type="number" step="0.01" placeholder="0" />
-          <span class="field-help" id="itemModalBaseRateHelp">0 ₽</span>
+          <span class="field-label">Ставка по умолчанию для сметы</span>
+          <div class="money-input">
+            <input id="itemModalBaseRate" type="number" step="0.01" placeholder="0" />
+            <span class="money-suffix">₽</span>
+          </div>
         </label>
         <label class="field-group">
           <span class="field-label">Стоимость покупки</span>
-          <input id="itemModalPurchasePrice" type="number" step="0.01" placeholder="0" />
-          <span class="field-help" id="itemModalPurchasePriceHelp">0 ₽</span>
+          <div class="money-input">
+            <input id="itemModalPurchasePrice" type="number" step="0.01" placeholder="0" />
+            <span class="money-suffix">₽</span>
+          </div>
         </label>
         <label class="field-group">
           <span class="field-label">Дата покупки</span>
@@ -598,7 +604,10 @@
         <button class="primary full" onclick="saveItemFromModal()">Сохранить изменения</button>
       </div>
 
-      <div class="section-title">История работы техники</div>
+      <div class="section-title section-title-row">
+        <span>История работы техники</span>
+        <span class="section-meta" id="itemHistorySummary">Всего отработано смен: 0</span>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
