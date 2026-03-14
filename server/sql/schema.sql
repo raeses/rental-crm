@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS items (
   purchase_price DECIMAL(12,2) DEFAULT 0,
   purchase_date DATE NULL,
   status ENUM('available','unavailable','maintenance') DEFAULT 'available',
+  is_archived BOOLEAN DEFAULT FALSE,
+  archived_at DATETIME NULL,
   owner_type ENUM('own','partner') DEFAULT 'own',
   serial_number VARCHAR(255) NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -73,3 +75,4 @@ CREATE INDEX idx_estimate_items_estimate_id ON estimate_items(estimate_id);
 CREATE INDEX idx_estimate_items_position_order ON estimate_items(position_order);
 CREATE INDEX idx_items_category ON items(category);
 CREATE INDEX idx_items_status ON items(status);
+CREATE INDEX idx_items_is_archived ON items(is_archived);
