@@ -331,6 +331,16 @@
       z-index: 60;
       padding: 20px;
     }
+    #projectModalOverlay {
+      z-index: 60;
+    }
+    #estimateModalOverlay {
+      z-index: 70;
+    }
+    #estimateCatalogOverlay,
+    #itemModalOverlay {
+      z-index: 80;
+    }
     .modal-overlay.open {
       display: flex;
     }
