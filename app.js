@@ -388,6 +388,13 @@ function resetItemForm() {
 
 function renderItemUsageHistory(history = []) {
   const body = document.getElementById('itemHistoryBody');
+  const summary = document.getElementById('itemHistorySummary');
+  const totalShifts = history.reduce((sum, entry) => sum + Number(entry.days || 0), 0);
+
+  if (summary) {
+    summary.textContent = `Всего отработано смен: ${totalShifts}`;
+  }
+
   if (!body) return;
 
   if (!history.length) {
@@ -416,21 +423,6 @@ function renderItemUsageHistory(history = []) {
     .join('');
 }
 
-function updateItemMoneyHints() {
-  const hintMap = [
-    ['itemModalPrice', 'itemModalPriceHelp'],
-    ['itemModalBaseRate', 'itemModalBaseRateHelp'],
-    ['itemModalPurchasePrice', 'itemModalPurchasePriceHelp']
-  ];
-
-  hintMap.forEach(([inputId, helpId]) => {
-    const input = document.getElementById(inputId);
-    const help = document.getElementById(helpId);
-    if (!input || !help) return;
-    help.textContent = formatMoney(input.value || 0);
-  });
-}
-
 function populateItemModal(item) {
   document.getElementById('itemModalId').value = item.id || '';
   document.getElementById('itemModalName').value = item.name || '';
@@ -445,7 +437,6 @@ function populateItemModal(item) {
   document.getElementById('itemModalTitle').textContent = item.name || 'Техника';
   document.getElementById('itemModalSubtitle').textContent = `ID: ${item.id}`;
   renderItemUsageHistory(item.usage_history || []);
-  updateItemMoneyHints();
 }
 
 async function openItemModal(itemId) {
@@ -1342,11 +1333,6 @@ function setupNavigation() {
       if (event.target.id === 'itemModalOverlay') closeItemModal();
     });
   }
-
-  ['itemModalPrice', 'itemModalBaseRate', 'itemModalPurchasePrice'].forEach(inputId => {
-    const input = document.getElementById(inputId);
-    if (input) input.addEventListener('input', updateItemMoneyHints);
-  });
 
   const estimateSelect = document.getElementById('projectEstimateSelect');
   if (estimateSelect) {
