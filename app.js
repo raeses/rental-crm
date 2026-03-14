@@ -427,8 +427,7 @@ function populateItemModal(item) {
   document.getElementById('itemModalId').value = item.id || '';
   document.getElementById('itemModalName').value = item.name || '';
   document.getElementById('itemModalCategory').value = item.category || 'Camera';
-  document.getElementById('itemModalPrice').value = item.price ?? '';
-  document.getElementById('itemModalBaseRate').value = item.base_rate ?? '';
+  document.getElementById('itemModalPrice').value = item.base_rate ?? item.price ?? '';
   document.getElementById('itemModalPurchasePrice').value = item.purchase_price ?? '';
   document.getElementById('itemModalPurchaseDate').value = item.purchase_date ? String(item.purchase_date).slice(0, 10) : '';
   document.getElementById('itemModalStatus').value = item.status || 'available';
@@ -458,12 +457,13 @@ async function saveItemFromModal() {
   try {
     const itemId = document.getElementById('itemModalId').value;
     if (!itemId) return;
+    const itemRate = Number(document.getElementById('itemModalPrice').value || 0);
 
     await apiPut(`/items/${itemId}`, {
       name: document.getElementById('itemModalName').value.trim(),
       category: document.getElementById('itemModalCategory').value.trim(),
-      price: Number(document.getElementById('itemModalPrice').value || 0),
-      base_rate: Number(document.getElementById('itemModalBaseRate').value || 0),
+      price: itemRate,
+      base_rate: itemRate,
       purchase_price: Number(document.getElementById('itemModalPurchasePrice').value || 0),
       purchase_date: document.getElementById('itemModalPurchaseDate').value || null,
       status: document.getElementById('itemModalStatus').value,
