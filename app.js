@@ -300,6 +300,18 @@ function getEstimateDisplayName(estimate = {}) {
   return [estimate.estimate_number, estimate.title].filter(Boolean).join(' — ') || `Смета #${estimate.id}`;
 }
 
+function getEstimateCatalogItems(search = '', category = 'all') {
+  const normalizedSearch = String(search || '').trim().toLowerCase();
+  const normalizedCategory = String(category || 'all');
+
+  return state.items.filter(item => {
+    if (isItemArchived(item)) return false;
+    if (normalizedCategory !== 'all' && String(item.category || '') !== normalizedCategory) return false;
+    if (!normalizedSearch) return true;
+    return String(item.name || '').toLowerCase().includes(normalizedSearch);
+  });
+}
+
 async function loadProjectEstimates(projectId) {
   const estimates = await apiGet(`/projects/${projectId}/estimates`);
   state.projectEstimatesByProject[Number(projectId)] = Array.isArray(estimates) ? estimates : [];
@@ -923,18 +935,19 @@ function fillSelects() {
     .concat(state.items.map(i => `<option value="${i.id}">${i.name}</option>`))
     .join('');
   document.getElementById('txItem').innerHTML = itemOptions;
-  document.getElementById('modalRiItem').innerHTML = itemOptions;
+  const modalRiItem = document.getElementById('modalRiItem');
+  if (modalRiItem) modalRiItem.innerHTML = itemOptions;
 
-  const estimateItemSelect = document.getElementById('estimateItemSelect');
-  if (estimateItemSelect) estimateItemSelect.innerHTML = itemOptions;
+  const estimateCatalogCategory = document.getElementById('estimateCatalogCategory');
+  if (estimateCatalogCategory) {
+    renderEstimateCatalogModal();
+  }
 
   if (state.activeRentalId) {
     renderProjectModal(state.activeRentalId).catch(error => {
       console.warn(error.message);
     });
   }
-
-  onEstimateItemChange();
 }
 
 async function createClient() {
@@ -1160,6 +1173,7 @@ function openProjectModal(rentalId) {
 
 function closeProjectModal() {
   document.getElementById('projectModalOverlay').classList.remove('open');
+  closeEstimateCatalogModal();
   closeEstimateModal();
 }
 
@@ -1170,14 +1184,12 @@ async function createEstimate() {
   if (!rental) return;
 
   const estimates = getProjectEstimates(state.activeRentalId);
-  const name = prompt('Название новой сметы', `Смета ${estimates.length + 1}`);
-  if (!name || !name.trim()) return;
 
   try {
     const created = await apiPost('/estimates', {
       project_id: Number(rental.id),
       estimate_number: `${rental.id}/${estimates.length + 1}`,
-      title: name.trim(),
+      title: null,
       start_date: toApiDate(rental.start_date),
       end_date: toApiDate(rental.end_date),
       discount_percent: 0,
@@ -1227,25 +1239,29 @@ function renderEstimateModal() {
 
   document.getElementById('estimateModalTitle').textContent = getEstimateDisplayName(estimate);
   document.getElementById('estimateModalSubtitle').textContent = rental ? `Проект: ${rental.title || '-'}` : '';
-  document.getElementById('estimateShifts').value = String(Math.max(1, Number(items[0]?.days || 1)));
   document.getElementById('estimateDiscount').value = String(Number(estimate.discount_percent || 0));
 
   const body = document.getElementById('estimateItemsBody');
   if (!items.length) {
-    body.innerHTML = '<tr><td colspan="7" class="empty">В этой смете пока нет техники.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="empty">В этой смете пока нет техники. Нажми «Добавить технику», чтобы собрать первую позицию.</td></tr>';
   } else {
     body.innerHTML = items
       .map((item, idx) => {
         const calc = calculateEstimateItem(item, estimate);
         return `
           <tr>
-            <td>${item.item_name || '-'}</td>
-            <td>${calc.quantity}</td>
+            <td>${escapeHtml(item.item_name || '-')}</td>
             <td>${formatMoney(calc.priceBeforeDiscount)}</td>
             <td>${formatMoney(calc.priceAfterDiscount)}</td>
+            <td>${calc.quantity}</td>
             <td>${calc.shifts}</td>
             <td>${formatMoney(calc.total)}</td>
-            <td><button class="secondary" onclick="editEstimateItem(${idx})">Изменить</button></td>
+            <td>
+              <div class="actions-inline table-actions-inline">
+                <button class="secondary" onclick="editEstimateItem(${idx})">Изменить</button>
+                <button class="secondary" onclick="deleteEstimateItemRow(${idx})">Удалить</button>
+              </div>
+            </td>
           </tr>
         `;
       })
@@ -1261,8 +1277,22 @@ function renderEstimateModal() {
 
   document.getElementById('estimateSummary').innerHTML = `
     <div class="card-label">Итоги сметы</div>
-    <div class="muted">До скидки: ${formatMoney(totals.before)}</div>
-    <div class="muted">После скидки: ${formatMoney(totals.after)}</div>
+    <div class="estimate-summary-metric">
+      <span>Период</span>
+      <strong>${formatDateRange(estimate.start_date, estimate.end_date)}</strong>
+    </div>
+    <div class="estimate-summary-metric">
+      <span>Техника</span>
+      <strong>${items.length}</strong>
+    </div>
+    <div class="estimate-summary-metric">
+      <span>До скидки</span>
+      <strong>${formatMoney(totals.before)}</strong>
+    </div>
+    <div class="estimate-summary-metric">
+      <span>После скидки</span>
+      <strong>${formatMoney(totals.after)}</strong>
+    </div>
   `;
 }
 
@@ -1285,8 +1315,19 @@ async function openEstimateModal(estimateId = null) {
 }
 
 function closeEstimateModal() {
+  closeEstimateCatalogModal();
   const overlay = document.getElementById('estimateModalOverlay');
   if (overlay) overlay.classList.remove('open');
+}
+
+function openEstimatePdf() {
+  const estimate = getActiveEstimate();
+  if (!estimate) {
+    alert('Сначала открой смету.');
+    return;
+  }
+
+  window.open(`${API}/estimates/${estimate.id}/pdf`, '_blank', 'noopener');
 }
 
 async function applyEstimateSettings() {
@@ -1320,13 +1361,16 @@ async function editEstimateItem(index) {
   const item = getEstimateItems(estimate)[index];
   if (!item) return;
 
-  const price = prompt('Цена до скидки', item.price_per_unit ?? item.price ?? 0);
+  const price = prompt('Базовая цена за смену', item.price_per_unit ?? item.price ?? 0);
   if (price === null) return;
   const quantity = prompt('Количество', item.quantity ?? 1);
   if (quantity === null) return;
+  const days = prompt('Смен', item.days ?? 1);
+  if (days === null) return;
 
   const nextPrice = Number(price || 0);
   const nextQuantity = Math.max(1, Number(quantity || 1));
+  const nextDays = Math.max(1, Number(days || 1));
 
   try {
     await apiPut(`/estimate-items/${item.id}`, {
@@ -1334,7 +1378,7 @@ async function editEstimateItem(index) {
       item_name: item.item_name || item.name || 'Техника',
       quantity: nextQuantity,
       price_per_unit: nextPrice,
-      days: Math.max(1, Number(item.days || 1)),
+      days: nextDays,
       position_order: Number(item.position_order || index + 1),
       source_type: item.source_type || 'catalog',
       catalog_item_id: item.catalog_item_id || null,
@@ -1349,53 +1393,102 @@ async function editEstimateItem(index) {
   }
 }
 
-function onEstimateItemChange() {
-  const select = document.getElementById('estimateItemSelect');
-  const priceInput = document.getElementById('estimateItemPrice');
-  const selectedId = Number(select?.value || 0);
-  if (!selectedId || !priceInput) return;
+async function deleteEstimateItemRow(index) {
+  const estimate = getActiveEstimate();
+  if (!estimate) return;
 
-  const item = state.items.find(entry => Number(entry.id) === selectedId);
-  const warehousePrice = Number(item?.base_rate ?? item?.price ?? 0);
-  priceInput.value = String(warehousePrice || 0);
+  const item = getEstimateItems(estimate)[index];
+  if (!item) return;
+
+  const confirmed = window.confirm(`Удалить из сметы позицию «${item.item_name || 'Техника'}»?`);
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`${API}/estimate-items/${item.id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const payload = await readApiPayload(res);
+      throw buildApiError(`/estimate-items/${item.id}`, res, payload, 'Ошибка удаления позиции');
+    }
+    await loadEstimateDetails(estimate.id);
+    await renderProjectModal(state.activeRentalId);
+    renderEstimateModal();
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
-async function addEstimateItem() {
+function renderEstimateCatalogModal() {
+  const searchInput = document.getElementById('estimateCatalogSearch');
+  const categorySelect = document.getElementById('estimateCatalogCategory');
+  const body = document.getElementById('estimateCatalogBody');
+  if (!searchInput || !categorySelect || !body) return;
+
+  const categories = [...new Set(state.items.map(item => item.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru'));
+  const currentCategory = categorySelect.value || 'all';
+  categorySelect.innerHTML = ['<option value="all">Все категории</option>', ...categories.map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)].join('');
+  categorySelect.value = categories.includes(currentCategory) || currentCategory === 'all' ? currentCategory : 'all';
+
+  const items = getEstimateCatalogItems(searchInput.value, categorySelect.value);
+  if (!items.length) {
+    body.innerHTML = '<tr><td colspan="4" class="empty">Подходящая техника не найдена.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = items
+    .map(item => `
+      <tr>
+        <td>${escapeHtml(item.name || '-')}</td>
+        <td>${escapeHtml(item.category || '-')}</td>
+        <td>${formatMoney(item.base_rate ?? item.price ?? 0)}</td>
+        <td><button class="secondary" onclick="addCatalogItemToEstimate(${item.id})">Добавить</button></td>
+      </tr>
+    `)
+    .join('');
+}
+
+function openEstimateCatalogModal() {
   const estimate = getActiveEstimate();
-  if (!estimate || !state.activeRentalId) return;
+  if (!estimate) {
+    alert('Сначала открой смету.');
+    return;
+  }
 
-  const itemId = Number(document.getElementById('estimateItemSelect').value || 0);
-  const price = Number(document.getElementById('estimateItemPrice').value || 0);
-  const quantity = Math.max(1, Number(document.getElementById('estimateItemQty').value || 1));
-  const days = Math.max(1, Number(document.getElementById('estimateShifts').value || 1));
-  const noteRaw = document.getElementById('estimateItemNote').value.trim();
+  const searchInput = document.getElementById('estimateCatalogSearch');
+  const categorySelect = document.getElementById('estimateCatalogCategory');
+  if (searchInput) searchInput.value = '';
+  if (categorySelect) categorySelect.value = 'all';
+  renderEstimateCatalogModal();
+  document.getElementById('estimateCatalogOverlay').classList.add('open');
+}
 
-  if (!itemId) {
-    alert('Выбери технику.');
+function closeEstimateCatalogModal() {
+  const overlay = document.getElementById('estimateCatalogOverlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+async function addCatalogItemToEstimate(itemId) {
+  const estimate = getActiveEstimate();
+  if (!estimate) return;
+
+  const sourceItem = state.items.find(item => Number(item.id) === Number(itemId));
+  if (!sourceItem) {
+    alert('Не удалось найти технику в каталоге.');
     return;
   }
 
   try {
-    const sourceItem = state.items.find(item => Number(item.id) === itemId);
-    if (!sourceItem) {
-      alert('Не удалось найти технику в каталоге.');
-      return;
-    }
-
     await apiPost(`/estimates/${estimate.id}/items`, {
       category: sourceItem.category || 'Camera',
       item_name: sourceItem.name || 'Техника',
-      quantity,
-      price_per_unit: price,
-      days,
+      quantity: 1,
+      price_per_unit: Number(sourceItem.base_rate ?? sourceItem.price ?? 0),
+      days: 1,
       source_type: 'catalog',
-      catalog_item_id: itemId,
-      notes: noteRaw || null
+      catalog_item_id: Number(itemId),
+      notes: null
     });
 
-    document.getElementById('estimateItemQty').value = '1';
-    document.getElementById('estimateItemNote').value = '';
-
+    closeEstimateCatalogModal();
     await loadEstimateDetails(estimate.id);
     await renderProjectModal(state.activeRentalId);
     renderEstimateModal();
@@ -1524,6 +1617,7 @@ function setupNavigation() {
 
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape') {
+      closeEstimateCatalogModal();
       closeItemModal();
       closeProjectModal();
       closeSidebar();
@@ -1541,6 +1635,13 @@ function setupNavigation() {
   if (estimateModalOverlay) {
     estimateModalOverlay.addEventListener('click', event => {
       if (event.target.id === 'estimateModalOverlay') closeEstimateModal();
+    });
+  }
+
+  const estimateCatalogOverlay = document.getElementById('estimateCatalogOverlay');
+  if (estimateCatalogOverlay) {
+    estimateCatalogOverlay.addEventListener('click', event => {
+      if (event.target.id === 'estimateCatalogOverlay') closeEstimateCatalogModal();
     });
   }
 
@@ -1574,8 +1675,19 @@ function setupNavigation() {
     });
   }
 
-  const estimateItemSelect = document.getElementById('estimateItemSelect');
-  if (estimateItemSelect) estimateItemSelect.addEventListener('change', onEstimateItemChange);
+  const estimateCatalogSearch = document.getElementById('estimateCatalogSearch');
+  if (estimateCatalogSearch) {
+    estimateCatalogSearch.addEventListener('input', () => {
+      renderEstimateCatalogModal();
+    });
+  }
+
+  const estimateCatalogCategory = document.getElementById('estimateCatalogCategory');
+  if (estimateCatalogCategory) {
+    estimateCatalogCategory.addEventListener('change', () => {
+      renderEstimateCatalogModal();
+    });
+  }
 }
 
 
@@ -1593,6 +1705,10 @@ window.openItemModal = openItemModal;
 window.closeItemModal = closeItemModal;
 window.saveItemFromModal = saveItemFromModal;
 window.toggleItemArchive = toggleItemArchive;
+window.openEstimatePdf = openEstimatePdf;
+window.openEstimateCatalogModal = openEstimateCatalogModal;
+window.closeEstimateCatalogModal = closeEstimateCatalogModal;
+window.addCatalogItemToEstimate = addCatalogItemToEstimate;
 
 setupNavigation();
 setupProjectDateGuard();
