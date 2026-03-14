@@ -232,6 +232,17 @@ function formatDateRange(start, end) {
   return `${left} — ${right}`;
 }
 
+function toApiDate(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  const directMatch = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (directMatch) return directMatch[1];
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+}
+
 function getProjectEstimates(projectId) {
   return state.projectEstimatesByProject[Number(projectId)] || [];
 }
@@ -1000,8 +1011,8 @@ async function createEstimate() {
       project_id: Number(rental.id),
       estimate_number: `${rental.id}/${estimates.length + 1}`,
       title: name.trim(),
-      start_date: rental.start_date || null,
-      end_date: rental.end_date || null,
+      start_date: toApiDate(rental.start_date),
+      end_date: toApiDate(rental.end_date),
       discount_percent: 0,
       tax_enabled: false,
       tax_percent: 0
@@ -1120,8 +1131,8 @@ async function applyEstimateSettings() {
       project_id: Number(estimate.project_id),
       estimate_number: estimate.estimate_number,
       title: estimate.title || null,
-      start_date: estimate.start_date || null,
-      end_date: estimate.end_date || null,
+      start_date: toApiDate(estimate.start_date),
+      end_date: toApiDate(estimate.end_date),
       discount_percent: Math.min(100, Math.max(0, Number(document.getElementById('estimateDiscount').value || 0))),
       tax_enabled: Boolean(estimate.tax_enabled),
       tax_percent: Number(estimate.tax_percent || 0)
