@@ -1,4 +1,4 @@
-import { createItem, getItemById, listItems, updateItem } from '../services/itemService.js';
+import { createItem, getItemDetailsById, listItems, updateItem } from '../services/itemService.js';
 import { assertNonNegativeNumber, assertRequiredString } from '../utils/validation.js';
 
 const VALID_STATUSES = new Set(['available', 'unavailable', 'maintenance']);
@@ -35,7 +35,7 @@ export async function listItemsHandler(_req, res, next) {
 
 export async function getItemHandler(req, res, next) {
   try {
-    const item = await getItemById(req.params.id);
+    const item = await getItemDetailsById(req.params.id);
     if (!item) return res.status(404).json({ error: 'Item not found' });
     return res.json(item);
   } catch (error) {
