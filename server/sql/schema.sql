@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS projects (
   start_date DATE,
   end_date DATE,
   status ENUM('draft','confirmed','in_progress','completed','closed') DEFAULT 'draft',
+  tax_profile VARCHAR(50) DEFAULT 'none',
+  tax_percent DECIMAL(10,2) DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
