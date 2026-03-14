@@ -26,6 +26,13 @@ const ITEM_OWNER_TYPE_LABELS = {
   partner: 'Партнерская'
 };
 
+const PROJECT_STATUS_LABELS = {
+  draft: 'Черновик',
+  confirmed: 'Подтвержден',
+  completed: 'Завершен',
+  closed: 'Отменен'
+};
+
 let loadAllDataPromise = null;
 
 const LEGACY_API_LABELS = {
@@ -54,6 +61,10 @@ function mapLegacyProjectStatus(status) {
   const normalized = String(status || '').toLowerCase();
   if (normalized === 'new') return 'draft';
   if (normalized === 'cancelled') return 'closed';
+  if (normalized === 'черновик') return 'draft';
+  if (normalized === 'подтвержден') return 'confirmed';
+  if (normalized === 'завершен') return 'completed';
+  if (normalized === 'отменен') return 'closed';
   return normalized || 'draft';
 }
 
@@ -67,12 +78,31 @@ function formatPercent(value) {
   return `${num.toFixed(1)}%`;
 }
 
+function escapeHtml(value = '') {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
 function getItemStatusLabel(status) {
   return ITEM_STATUS_LABELS[String(status || '').toLowerCase()] || status || '-';
 }
 
 function getItemOwnerTypeLabel(ownerType) {
   return ITEM_OWNER_TYPE_LABELS[String(ownerType || '').toLowerCase()] || ownerType || '-';
+}
+
+function getProjectStatusLabel(status) {
+  return PROJECT_STATUS_LABELS[String(status || '').toLowerCase()] || status || '-';
+}
+
+function renderProjectStatusOptions(selectedStatus = 'draft') {
+  const current = String(selectedStatus || 'draft').toLowerCase();
+  return Object.entries(PROJECT_STATUS_LABELS)
+    .map(([value, label]) => `<option value="${value}" ${value === current ? 'selected' : ''}>${label}</option>`)
+    .join('');
 }
 
 function normalizePaybackItem(item = {}) {
@@ -99,7 +129,7 @@ function getStatusPill(status) {
   let cls = 'yellow';
 
   if (['available', 'paid', 'active', 'confirmed', 'income'].includes(normalized)) cls = 'green';
-  if (['unavailable', 'cancelled', 'unpaid', 'lost', 'expense'].includes(normalized)) cls = 'red';
+  if (['unavailable', 'cancelled', 'closed', 'unpaid', 'lost', 'expense'].includes(normalized)) cls = 'red';
 
   return `<span class="pill ${cls}">${status || '-'}</span>`;
 }
@@ -542,10 +572,10 @@ function renderProjects() {
         <tr class="project-row" onclick="openProjectModal(${Number(rental.id)})">
           <td>${rental.title || '-'}</td>
           <td>${clientName || '-'}</td>
-          <td>${rental.start_date || '-'}<br><span class="muted">${rental.end_date || '-'}</span></td>
+          <td>${formatShortDate(rental.start_date)}<br><span class="muted">${formatShortDate(rental.end_date)}</span></td>
           <td>${formatMoney(rental.total)}</td>
           <td>${formatMoney(rental.paid_amount || 0)}</td>
-          <td>${getStatusPill(rental.payment_status || rental.status)}</td>
+          <td>${getStatusPillWithLabel(rental.status || rental.payment_status, getProjectStatusLabel(rental.status || rental.payment_status))}</td>
         </tr>
       `;
     })
@@ -912,9 +942,50 @@ async function createRental() {
     document.getElementById('rentalTitle').value = '';
     document.getElementById('rentalStart').value = '';
     document.getElementById('rentalEnd').value = '';
+    document.getElementById('rentalStatus').value = 'draft';
 
     await loadAllData();
     alert('Проект сохранён');
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function saveProjectDetails() {
+  try {
+    if (!state.activeRentalId) return;
+
+    const rental = state.rentals.find(item => Number(item.id) === Number(state.activeRentalId));
+    if (!rental) return;
+
+    const name = document.getElementById('projectModalName').value.trim();
+    const startDate = document.getElementById('projectModalStart').value || null;
+    const endDate = document.getElementById('projectModalEnd').value || null;
+    const status = mapLegacyProjectStatus(document.getElementById('projectModalStatus').value);
+
+    if (!name) {
+      alert('Укажи название проекта.');
+      return;
+    }
+
+    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+      alert('Дата завершения не может быть раньше даты начала.');
+      return;
+    }
+
+    await apiPut(`/projects/${rental.id}`, {
+      internal_number: rental.internal_number || null,
+      name,
+      client: rental.client_name || rental.client || null,
+      operator: rental.operator || null,
+      start_date: startDate,
+      end_date: endDate,
+      status
+    });
+
+    await loadAllData({ silent: true });
+    await renderProjectModal(rental.id);
+    alert('Проект обновлён');
   } catch (error) {
     alert(error.message);
   }
@@ -926,12 +997,30 @@ async function renderProjectModal(rentalId) {
 
   const client = state.clients.find(c => Number(c.id) === Number(rental.client_id));
   const clientName = rental.client_name || rental.client || client?.name || 'Без клиента';
+  const statusLabel = getProjectStatusLabel(rental.status);
 
   document.getElementById('projectModalTitle').textContent = rental.title || 'Проект';
   document.getElementById('projectModalSubtitle').textContent = `Клиент: ${clientName}`;
   document.getElementById('projectModalInfo').innerHTML = `
-    <div class="card"><div class="card-label">Период</div><div>${formatDateRange(rental.start_date, rental.end_date)}</div></div>
-    <div class="card"><div class="card-label">Статус</div><div>${rental.status || '-'}</div></div>
+    <div class="field-group">
+      <span class="field-label">Название проекта</span>
+      <input id="projectModalName" value="${escapeHtml(rental.title || '')}" placeholder="Название проекта" />
+    </div>
+    <div class="field-group">
+      <span class="field-label">Статус проекта</span>
+      <select id="projectModalStatus">${renderProjectStatusOptions(rental.status || 'draft')}</select>
+    </div>
+    <div class="field-group">
+      <span class="field-label">Дата начала</span>
+      <input id="projectModalStart" type="date" value="${toApiDate(rental.start_date) || ''}" />
+    </div>
+    <div class="field-group">
+      <span class="field-label">Дата завершения</span>
+      <input id="projectModalEnd" type="date" value="${toApiDate(rental.end_date) || ''}" />
+    </div>
+    <button class="primary full" onclick="saveProjectDetails()">Сохранить проект</button>
+    <div class="card"><div class="card-label">Текущий статус</div><div>${statusLabel}</div></div>
+    <div class="card"><div class="card-label">Период проекта</div><div>${formatDateRange(rental.start_date, rental.end_date)}</div></div>
     <div class="card"><div class="card-label">Сумма</div><div>${formatMoney(rental.total)}</div></div>
     <div class="card"><div class="card-label">Оплачено</div><div>${formatMoney(rental.paid_amount || 0)}</div></div>
   `;
