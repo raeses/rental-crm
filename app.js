@@ -431,36 +431,6 @@ function updateItemMoneyHints() {
   });
 }
 
-function renderItemStats(item) {
-  const stats = document.getElementById('itemModalStats');
-  if (!stats) return;
-
-  const history = item.usage_history || [];
-  const totalShifts = history.reduce((sum, entry) => sum + Number(entry.days || 0), 0);
-  const totalWorkDays = history.reduce((sum, entry) => sum + Number(entry.days || 0) * Number(entry.quantity || 0), 0);
-  const totalRevenue = history.reduce((sum, entry) => sum + Number(entry.line_total || 0), 0);
-
-  stats.innerHTML = [
-    ['Стоимость покупки', formatMoney(item.purchase_price)],
-    ['Базовая ставка', formatMoney(item.base_rate || item.price)],
-    ['Тип владения', getItemOwnerTypeLabel(item.owner_type)],
-    ['Статус', getItemStatusLabel(item.status)],
-    ['Отработано смен', String(totalShifts)],
-    ['Единиц x смен', String(totalWorkDays)],
-    ['Доход по сметам', formatMoney(totalRevenue)],
-    ['Использований в сметах', String(history.length)]
-  ]
-    .map(
-      ([label, value]) => `
-        <div class="card">
-          <div class="card-label">${label}</div>
-          <div class="card-value" style="font-size: 22px;">${value}</div>
-        </div>
-      `
-    )
-    .join('');
-}
-
 function populateItemModal(item) {
   document.getElementById('itemModalId').value = item.id || '';
   document.getElementById('itemModalName').value = item.name || '';
@@ -474,7 +444,6 @@ function populateItemModal(item) {
   document.getElementById('itemModalSerial').value = item.serial_number || '';
   document.getElementById('itemModalTitle').textContent = item.name || 'Техника';
   document.getElementById('itemModalSubtitle').textContent = `ID: ${item.id}`;
-  renderItemStats(item);
   renderItemUsageHistory(item.usage_history || []);
   updateItemMoneyHints();
 }
