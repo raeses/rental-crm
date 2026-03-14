@@ -10,6 +10,44 @@ export async function getItemById(id) {
   return rows[0] || null;
 }
 
+export async function getItemUsageHistory(itemId) {
+  const [rows] = await pool.execute(
+    `SELECT
+      ei.id,
+      ei.item_name,
+      ei.quantity,
+      ei.price_per_unit,
+      ei.days,
+      ei.line_total,
+      ei.created_at,
+      e.id AS estimate_id,
+      e.estimate_number,
+      e.title AS estimate_title,
+      e.start_date AS estimate_start_date,
+      e.end_date AS estimate_end_date,
+      p.id AS project_id,
+      p.name AS project_name,
+      p.start_date AS project_start_date,
+      p.end_date AS project_end_date
+     FROM estimate_items ei
+     INNER JOIN estimates e ON e.id = ei.estimate_id
+     INNER JOIN projects p ON p.id = e.project_id
+     WHERE ei.catalog_item_id = ?
+     ORDER BY COALESCE(e.start_date, p.start_date) DESC, ei.id DESC`,
+    [itemId]
+  );
+
+  return rows;
+}
+
+export async function getItemDetailsById(id) {
+  const item = await getItemById(id);
+  if (!item) return null;
+
+  const usage_history = await getItemUsageHistory(id);
+  return { ...item, usage_history };
+}
+
 export async function createItem(data) {
   const [result] = await pool.execute(
     `INSERT INTO items

@@ -338,7 +338,7 @@ function renderItems() {
         <td>${getStatusPill(item.status)}</td>
         <td>${formatMoney(item.revenue_total)}</td>
         <td>${formatPercent(item.payback_percent)}</td>
-        <td><button class="secondary" onclick="editItem(${Number(item.id)})">Редактировать</button></td>
+        <td><button class="secondary" onclick="openItemModal(${Number(item.id)})">Редактировать</button></td>
       </tr>
     `
     )
@@ -346,7 +346,6 @@ function renderItems() {
 }
 
 function resetItemForm() {
-  document.getElementById('itemId').value = '';
   document.getElementById('itemName').value = '';
   document.getElementById('itemCategory').value = 'Camera';
   document.getElementById('itemPrice').value = '';
@@ -356,36 +355,92 @@ function resetItemForm() {
   document.getElementById('itemStatus').value = 'available';
   document.getElementById('itemOwnerType').value = 'own';
   document.getElementById('itemSerial').value = '';
-  document.getElementById('itemFormTitle').textContent = 'Новая техника';
-  document.getElementById('itemSaveButton').textContent = 'Сохранить технику';
-  document.getElementById('itemCancelButton').classList.add('hidden');
 }
 
-function populateItemForm(item) {
-  document.getElementById('itemId').value = item.id || '';
-  document.getElementById('itemName').value = item.name || '';
-  document.getElementById('itemCategory').value = item.category || 'Camera';
-  document.getElementById('itemPrice').value = item.price ?? '';
-  document.getElementById('itemBaseRate').value = item.base_rate ?? '';
-  document.getElementById('itemPurchasePrice').value = item.purchase_price ?? '';
-  document.getElementById('itemPurchaseDate').value = item.purchase_date ? String(item.purchase_date).slice(0, 10) : '';
-  document.getElementById('itemStatus').value = item.status || 'available';
-  document.getElementById('itemOwnerType').value = item.owner_type || 'own';
-  document.getElementById('itemSerial').value = item.serial_number || '';
-  document.getElementById('itemFormTitle').textContent = 'Редактирование техники';
-  document.getElementById('itemSaveButton').textContent = 'Сохранить изменения';
-  document.getElementById('itemCancelButton').classList.remove('hidden');
+function renderItemUsageHistory(history = []) {
+  const body = document.getElementById('itemHistoryBody');
+  if (!body) return;
+
+  if (!history.length) {
+    body.innerHTML = '<tr><td colspan="7" class="empty">Эта техника пока не использовалась в сметах.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = history
+    .map(entry => {
+      const periodStart = entry.estimate_start_date || entry.project_start_date;
+      const periodEnd = entry.estimate_end_date || entry.project_end_date;
+      const period = [periodStart, periodEnd].filter(Boolean).join(' - ') || '-';
+
+      return `
+        <tr>
+          <td>${entry.project_name || '-'}</td>
+          <td>${entry.estimate_number || '-'}${entry.estimate_title ? `<br><span class="muted">${entry.estimate_title}</span>` : ''}</td>
+          <td>${period}</td>
+          <td>${entry.quantity || 0}</td>
+          <td>${formatMoney(entry.price_per_unit)}</td>
+          <td>${entry.days || 0}</td>
+          <td>${formatMoney(entry.line_total)}</td>
+        </tr>
+      `;
+    })
+    .join('');
 }
 
-function editItem(itemId) {
-  const item = state.items.find(entry => Number(entry.id) === Number(itemId));
-  if (!item) return;
-  populateItemForm(item);
-  document.getElementById('page-items')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+function populateItemModal(item) {
+  document.getElementById('itemModalId').value = item.id || '';
+  document.getElementById('itemModalName').value = item.name || '';
+  document.getElementById('itemModalCategory').value = item.category || 'Camera';
+  document.getElementById('itemModalPrice').value = item.price ?? '';
+  document.getElementById('itemModalBaseRate').value = item.base_rate ?? '';
+  document.getElementById('itemModalPurchasePrice').value = item.purchase_price ?? '';
+  document.getElementById('itemModalPurchaseDate').value = item.purchase_date ? String(item.purchase_date).slice(0, 10) : '';
+  document.getElementById('itemModalStatus').value = item.status || 'available';
+  document.getElementById('itemModalOwnerType').value = item.owner_type || 'own';
+  document.getElementById('itemModalSerial').value = item.serial_number || '';
+  document.getElementById('itemModalTitle').textContent = item.name || 'Техника';
+  document.getElementById('itemModalSubtitle').textContent = `ID: ${item.id}`;
+  renderItemUsageHistory(item.usage_history || []);
 }
 
-function cancelItemEdit() {
-  resetItemForm();
+async function openItemModal(itemId) {
+  try {
+    const item = await apiGet(`/items/${itemId}`);
+    if (!item) return;
+    populateItemModal(item);
+    document.getElementById('itemModalOverlay').classList.add('open');
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+function closeItemModal() {
+  document.getElementById('itemModalOverlay').classList.remove('open');
+}
+
+async function saveItemFromModal() {
+  try {
+    const itemId = document.getElementById('itemModalId').value;
+    if (!itemId) return;
+
+    await apiPut(`/items/${itemId}`, {
+      name: document.getElementById('itemModalName').value.trim(),
+      category: document.getElementById('itemModalCategory').value.trim(),
+      price: Number(document.getElementById('itemModalPrice').value || 0),
+      base_rate: Number(document.getElementById('itemModalBaseRate').value || 0),
+      purchase_price: Number(document.getElementById('itemModalPurchasePrice').value || 0),
+      purchase_date: document.getElementById('itemModalPurchaseDate').value || null,
+      status: document.getElementById('itemModalStatus').value,
+      owner_type: document.getElementById('itemModalOwnerType').value,
+      serial_number: document.getElementById('itemModalSerial').value.trim()
+    });
+
+    await loadAllData();
+    await openItemModal(itemId);
+    alert('Техника обновлена');
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function renderProjects() {
@@ -712,7 +767,6 @@ async function createClient() {
 
 async function createItem() {
   try {
-    const itemId = document.getElementById('itemId').value;
     const payload = {
       name: document.getElementById('itemName').value.trim(),
       category: document.getElementById('itemCategory').value.trim(),
@@ -725,16 +779,11 @@ async function createItem() {
       serial_number: document.getElementById('itemSerial').value.trim()
     };
 
-    if (itemId) {
-      await apiPut(`/items/${itemId}`, payload);
-    } else {
-      await apiPost('/items', payload);
-    }
-
+    await apiPost('/items', payload);
     resetItemForm();
 
     await loadAllData();
-    alert(itemId ? 'Техника обновлена' : 'Техника сохранена');
+    alert('Техника сохранена');
   } catch (error) {
     alert(error.message);
   }
@@ -1222,6 +1271,7 @@ function setupNavigation() {
 
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape') {
+      closeItemModal();
       closeProjectModal();
       closeSidebar();
     }
@@ -1238,6 +1288,13 @@ function setupNavigation() {
   if (estimateModalOverlay) {
     estimateModalOverlay.addEventListener('click', event => {
       if (event.target.id === 'estimateModalOverlay') closeEstimateModal();
+    });
+  }
+
+  const itemModalOverlay = document.getElementById('itemModalOverlay');
+  if (itemModalOverlay) {
+    itemModalOverlay.addEventListener('click', event => {
+      if (event.target.id === 'itemModalOverlay') closeItemModal();
     });
   }
 
@@ -1263,8 +1320,9 @@ window.crmApp = {
   openEstimateModal
 };
 
-window.editItem = editItem;
-window.cancelItemEdit = cancelItemEdit;
+window.openItemModal = openItemModal;
+window.closeItemModal = closeItemModal;
+window.saveItemFromModal = saveItemFromModal;
 
 setupNavigation();
 setupProjectDateGuard();
