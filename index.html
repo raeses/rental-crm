@@ -181,16 +181,31 @@
           <div class="card">
             <div class="section-title">Новый проект</div>
             <div class="form-grid">
-              <select id="rentalClient"></select>
-              <input id="rentalTitle" placeholder="Название проекта" />
-              <input id="rentalStart" type="date" />
-              <input id="rentalEnd" type="date" />
-              <select id="rentalStatus">
-                <option value="new">new</option>
-                <option value="confirmed">confirmed</option>
-                <option value="completed">completed</option>
-                <option value="cancelled">cancelled</option>
-              </select>
+              <div class="field-group">
+                <span class="field-label">Клиент</span>
+                <select id="rentalClient"></select>
+              </div>
+              <div class="field-group">
+                <span class="field-label">Название проекта</span>
+                <input id="rentalTitle" placeholder="Название проекта" />
+              </div>
+              <div class="field-group">
+                <span class="field-label">Дата начала</span>
+                <input id="rentalStart" type="date" />
+              </div>
+              <div class="field-group">
+                <span class="field-label">Дата завершения</span>
+                <input id="rentalEnd" type="date" />
+              </div>
+              <div class="field-group">
+                <span class="field-label">Статус проекта</span>
+                <select id="rentalStatus">
+                  <option value="draft">Черновик</option>
+                  <option value="confirmed">Подтвержден</option>
+                  <option value="completed">Завершен</option>
+                  <option value="closed">Отменен</option>
+                </select>
+              </div>
               <div></div>
               <button class="primary full" onclick="createRental()">Сохранить проект</button>
             </div>
