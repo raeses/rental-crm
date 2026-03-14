@@ -1,6 +1,29 @@
 import pool from '../db/pool.js';
 import { calcItemTotals, calcEstimateTotals } from './estimateCalculations.js';
 
+export async function getCatalogItemAvailableCount(catalogItemId) {
+  if (!catalogItemId) return null;
+
+  const [catalogRows] = await pool.execute(
+    'SELECT name, category FROM items WHERE id = ? LIMIT 1',
+    [catalogItemId]
+  );
+  const catalogItem = catalogRows[0];
+  if (!catalogItem) return null;
+
+  const [countRows] = await pool.execute(
+    `SELECT COUNT(*) AS available_count
+     FROM items
+     WHERE name = ?
+       AND category = ?
+       AND status = 'available'
+       AND COALESCE(is_archived, 0) = 0`,
+    [catalogItem.name, catalogItem.category]
+  );
+
+  return Number(countRows[0]?.available_count || 0);
+}
+
 export async function createEstimate(data) {
   const [result] = await pool.execute(
     `INSERT INTO estimates

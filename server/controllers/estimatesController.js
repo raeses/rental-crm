@@ -3,6 +3,7 @@ import {
   archiveEstimate,
   createEstimate,
   deleteEstimateItem,
+  getCatalogItemAvailableCount,
   getEstimateById,
   listEstimatesByProject,
   recalculateEstimateTotals,
@@ -26,6 +27,20 @@ function validateEstimateItemBody(body) {
   assertPositiveNumber(body.quantity, 'quantity');
   assertNonNegativeNumber(body.price_per_unit, 'price_per_unit');
   assertPositiveNumber(body.days, 'days');
+}
+
+async function validateCatalogStock(body) {
+  const isCatalogItem = String(body.source_type || 'catalog') === 'catalog' && body.catalog_item_id;
+  if (!isCatalogItem) return;
+
+  const availableCount = await getCatalogItemAvailableCount(body.catalog_item_id);
+  if (!availableCount) {
+    throw new Error('Эта техника больше недоступна в активном каталоге.');
+  }
+
+  if (Number(body.quantity) > availableCount) {
+    throw new Error(`Нельзя добавить больше ${availableCount} шт. — столько активных единиц есть в базе.`);
+  }
 }
 
 export async function createEstimateHandler(req, res, next) {
@@ -81,6 +96,7 @@ export async function listProjectEstimatesHandler(req, res, next) {
 export async function createEstimateItemHandler(req, res, next) {
   try {
     validateEstimateItemBody(req.body);
+    await validateCatalogStock(req.body);
     const item = await addEstimateItem(req.params.estimateId, req.body);
     res.status(201).json(item);
   } catch (error) {
@@ -91,6 +107,7 @@ export async function createEstimateItemHandler(req, res, next) {
 export async function updateEstimateItemHandler(req, res, next) {
   try {
     validateEstimateItemBody(req.body);
+    await validateCatalogStock(req.body);
     const item = await updateEstimateItem(req.params.id, req.body);
     if (!item) return res.status(404).json({ error: 'Estimate item not found' });
     return res.json(item);
