@@ -1,9 +1,10 @@
 import { createProject, getProjectById, listProjects, updateProject } from '../services/projectService.js';
-import { assertRequiredString } from '../utils/validation.js';
+import { assertNonNegativeNumber, assertRequiredString } from '../utils/validation.js';
 
 export async function createProjectHandler(req, res, next) {
   try {
     assertRequiredString(req.body.name, 'name');
+    assertNonNegativeNumber(req.body.tax_percent || 0, 'tax_percent');
     const project = await createProject(req.body);
     res.status(201).json(project);
   } catch (error) {
@@ -33,6 +34,7 @@ export async function getProjectHandler(req, res, next) {
 export async function updateProjectHandler(req, res, next) {
   try {
     assertRequiredString(req.body.name, 'name');
+    assertNonNegativeNumber(req.body.tax_percent || 0, 'tax_percent');
     const project = await updateProject(req.params.id, req.body);
     res.json(project);
   } catch (error) {
