@@ -1075,7 +1075,6 @@ async function renderProjectModal(rentalId) {
 
   const client = state.clients.find(c => Number(c.id) === Number(rental.client_id));
   const clientName = rental.client_name || rental.client || client?.name || 'Без клиента';
-  const statusLabel = getProjectStatusLabel(rental.status);
 
   document.getElementById('projectModalTitle').textContent = rental.title || 'Проект';
   document.getElementById('projectModalSubtitle').textContent = `Клиент: ${clientName}`;
@@ -1097,10 +1096,6 @@ async function renderProjectModal(rentalId) {
       <input id="projectModalEnd" type="date" value="${toApiDate(rental.end_date) || ''}" />
     </div>
     <button class="primary full" onclick="saveProjectDetails()">Сохранить проект</button>
-    <div class="card"><div class="card-label">Текущий статус</div><div>${statusLabel}</div></div>
-    <div class="card"><div class="card-label">Период проекта</div><div>${formatDateRange(rental.start_date, rental.end_date)}</div></div>
-    <div class="card"><div class="card-label">Сумма</div><div>${formatMoney(rental.total)}</div></div>
-    <div class="card"><div class="card-label">Оплачено</div><div>${formatMoney(rental.paid_amount || 0)}</div></div>
   `;
 
   const estimateSelect = document.getElementById('projectEstimateSelect');
