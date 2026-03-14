@@ -475,14 +475,64 @@
           <h2 id="estimateModalTitle">Смета</h2>
           <div id="estimateModalSubtitle" class="muted"></div>
         </div>
-        <button class="secondary" onclick="closeEstimateModal()">Закрыть</button>
+        <div class="actions-inline modal-actions-inline">
+          <button class="secondary" onclick="openEstimatePdf()">PDF</button>
+          <button class="secondary" onclick="closeEstimateModal()">Закрыть</button>
+        </div>
       </div>
 
-      <div class="form-grid">
-        <input id="estimateShifts" type="number" step="1" min="1" placeholder="Кол-во смен" />
-        <input id="estimateDiscount" type="number" step="0.01" min="0" max="100" placeholder="Скидка, %" />
-        <button class="primary" onclick="applyEstimateSettings()">Сохранить параметры сметы</button>
-        <div id="estimateSummary" class="card"></div>
+      <div class="estimate-summary-shell">
+        <div id="estimateSummary" class="card estimate-summary-card"></div>
+        <div class="estimate-settings-card">
+          <label class="field-group">
+            <span class="field-label">Общая скидка по смете, %</span>
+            <input id="estimateDiscount" type="number" step="0.01" min="0" max="100" placeholder="Скидка, %" />
+          </label>
+          <div class="actions-inline estimate-settings-actions">
+            <button class="primary" onclick="applyEstimateSettings()">Сохранить параметры</button>
+            <button class="secondary" onclick="openEstimateCatalogModal()">Добавить технику</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-wrap" style="margin-top: 12px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Наименование</th>
+              <th>Базовая цена</th>
+              <th>Цена со скидкой</th>
+              <th>Кол-во</th>
+              <th>Смен</th>
+              <th>Итого</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody id="estimateItemsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="estimateCatalogOverlay">
+    <div class="modal estimate-catalog-modal">
+      <div class="modal-header">
+        <div>
+          <h2>Добавить технику</h2>
+          <div class="muted">Выбери позицию из каталога для текущей сметы.</div>
+        </div>
+        <button class="secondary" onclick="closeEstimateCatalogModal()">Закрыть</button>
+      </div>
+
+      <div class="form-grid estimate-catalog-filters">
+        <label class="field-group">
+          <span class="field-label">Поиск по названию</span>
+          <input id="estimateCatalogSearch" placeholder="Например, Sony FX3" />
+        </label>
+        <label class="field-group">
+          <span class="field-label">Категория</span>
+          <select id="estimateCatalogCategory"></select>
+        </label>
       </div>
 
       <div class="table-wrap" style="margin-top: 12px;">
@@ -490,27 +540,13 @@
           <thead>
             <tr>
               <th>Техника</th>
-              <th>Кол-во</th>
-              <th>Цена до скидки</th>
-              <th>Цена со скидкой</th>
-              <th>Смен</th>
-              <th>Итого</th>
+              <th>Категория</th>
+              <th>Ставка</th>
               <th></th>
             </tr>
           </thead>
-          <tbody id="estimateItemsBody"></tbody>
+          <tbody id="estimateCatalogBody"></tbody>
         </table>
-      </div>
-
-      <hr style="border-color: var(--border); margin: 18px 0;">
-
-      <div class="section-title">Добавить технику в смету</div>
-      <div class="form-grid">
-        <select id="estimateItemSelect"></select>
-        <input id="estimateItemPrice" type="number" step="0.01" placeholder="Цена до скидки / смена" />
-        <input id="estimateItemQty" type="number" step="1" min="1" value="1" placeholder="Количество" />
-        <textarea id="estimateItemNote" class="full" placeholder="Комментарий"></textarea>
-        <button class="primary full" onclick="addEstimateItem()">Добавить технику</button>
       </div>
     </div>
   </div>
@@ -550,18 +586,6 @@
           </thead>
           <tbody id="projectEstimatesBody"></tbody>
         </table>
-      </div>
-
-      <hr style="border-color: var(--border); margin: 18px 0;">
-
-      <div class="section-title">Добавить технику в смету</div>
-      <div class="form-grid">
-        <select id="modalRiItem"></select>
-        <input id="modalRiPrice" type="number" step="0.01" placeholder="Цена за смену" />
-        <input id="modalRiDays" type="number" step="1" placeholder="Смен" value="1" />
-        <input id="modalRiQty" type="number" step="1" placeholder="Количество" value="1" />
-        <textarea id="modalRiNote" class="full" placeholder="Комментарий"></textarea>
-        <button class="primary full" onclick="addRentalItemFromModal()">Добавить в смету</button>
       </div>
     </div>
   </div>
