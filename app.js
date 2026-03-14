@@ -7,9 +7,10 @@ const state = {
   transactions: [],
   financeSummary: null,
   payback: [],
-  estimatesByRental: {},
+  projectEstimatesByProject: {},
   activeRentalId: null,
   activeEstimateId: null,
+  activeEstimate: null,
   rentalItems: [],
   subrentals: []
 };
@@ -217,17 +218,51 @@ function isPastDate(value) {
   return date < today;
 }
 
-function ensureRentalEstimates(rentalId) {
-  const id = Number(rentalId);
-  if (!id) return [];
+function formatShortDate(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString('ru-RU');
+}
 
-  if (!state.estimatesByRental[id]) {
-    state.estimatesByRental[id] = [
-      { id: `${id}-base`, name: 'Основная смета', created_at: new Date().toISOString() }
-    ];
+function formatDateRange(start, end) {
+  const left = formatShortDate(start);
+  const right = formatShortDate(end);
+  if (left === '-' && right === '-') return '-';
+  return `${left} — ${right}`;
+}
+
+function getProjectEstimates(projectId) {
+  return state.projectEstimatesByProject[Number(projectId)] || [];
+}
+
+function getEstimateDisplayName(estimate = {}) {
+  return [estimate.estimate_number, estimate.title].filter(Boolean).join(' — ') || `Смета #${estimate.id}`;
+}
+
+async function loadProjectEstimates(projectId) {
+  const estimates = await apiGet(`/projects/${projectId}/estimates`);
+  state.projectEstimatesByProject[Number(projectId)] = Array.isArray(estimates) ? estimates : [];
+  return getProjectEstimates(projectId);
+}
+
+async function loadEstimateDetails(estimateId) {
+  const estimate = await apiGet(`/estimates/${estimateId}`);
+  state.activeEstimate = estimate;
+  state.activeEstimateId = String(estimate.id);
+
+  const projectId = Number(estimate.project_id);
+  if (projectId) {
+    const existing = getProjectEstimates(projectId);
+    const summary = { ...estimate };
+    delete summary.items;
+
+    state.projectEstimatesByProject[projectId] = existing.some(item => Number(item.id) === Number(summary.id))
+      ? existing.map(item => (Number(item.id) === Number(summary.id) ? { ...item, ...summary } : item))
+      : [summary, ...existing];
   }
 
-  return state.estimatesByRental[id];
+  return estimate;
 }
 
 async function loadAllData(options = {}) {
@@ -776,7 +811,9 @@ function fillSelects() {
   if (estimateItemSelect) estimateItemSelect.innerHTML = itemOptions;
 
   if (state.activeRentalId) {
-    renderProjectModal(state.activeRentalId);
+    renderProjectModal(state.activeRentalId).catch(error => {
+      console.warn(error.message);
+    });
   }
 
   onEstimateItemChange();
@@ -872,29 +909,46 @@ async function createRental() {
   }
 }
 
-function renderProjectModal(rentalId) {
+async function renderProjectModal(rentalId) {
   const rental = state.rentals.find(item => Number(item.id) === Number(rentalId));
   if (!rental) return;
 
   const client = state.clients.find(c => Number(c.id) === Number(rental.client_id));
-  const estimates = ensureRentalEstimates(rental.id);
+  const clientName = rental.client_name || rental.client || client?.name || 'Без клиента';
 
   document.getElementById('projectModalTitle').textContent = rental.title || 'Проект';
-  document.getElementById('projectModalSubtitle').textContent = `Клиент: ${client ? client.name : 'Без клиента'}`;
+  document.getElementById('projectModalSubtitle').textContent = `Клиент: ${clientName}`;
   document.getElementById('projectModalInfo').innerHTML = `
-    <div class="card"><div class="card-label">Период</div><div>${rental.start_date || '-'} — ${rental.end_date || '-'}</div></div>
+    <div class="card"><div class="card-label">Период</div><div>${formatDateRange(rental.start_date, rental.end_date)}</div></div>
     <div class="card"><div class="card-label">Статус</div><div>${rental.status || '-'}</div></div>
     <div class="card"><div class="card-label">Сумма</div><div>${formatMoney(rental.total)}</div></div>
     <div class="card"><div class="card-label">Оплачено</div><div>${formatMoney(rental.paid_amount || 0)}</div></div>
   `;
 
   const estimateSelect = document.getElementById('projectEstimateSelect');
-  const currentEstimateId = state.activeEstimateId && estimates.some(item => item.id === state.activeEstimateId)
-    ? state.activeEstimateId
-    : estimates[0]?.id;
+  const estimatesBody = document.getElementById('projectEstimatesBody');
+  const estimateMeta = document.getElementById('projectEstimateMeta');
+
+  estimateSelect.innerHTML = '<option value="">Загрузка смет...</option>';
+  estimatesBody.innerHTML = '<tr><td colspan="2" class="empty">Загрузка смет...</td></tr>';
+  estimateMeta.textContent = 'Загрузка смет...';
+
+  const estimates = await loadProjectEstimates(rental.id);
+  if (!estimates.length) {
+    estimateSelect.innerHTML = '<option value="">Смет пока нет</option>';
+    estimatesBody.innerHTML = '<tr><td colspan="2" class="empty">Для этого проекта пока нет смет.</td></tr>';
+    estimateMeta.textContent = 'Всего смет: 0';
+    state.activeEstimateId = null;
+    state.activeEstimate = null;
+    return;
+  }
+
+  const currentEstimateId = state.activeEstimateId && estimates.some(item => String(item.id) === String(state.activeEstimateId))
+    ? String(state.activeEstimateId)
+    : String(estimates[0].id);
 
   estimateSelect.innerHTML = estimates
-    .map(estimate => `<option value="${estimate.id}">${estimate.name}</option>`)
+    .map(estimate => `<option value="${estimate.id}">${getEstimateDisplayName(estimate)}</option>`)
     .join('');
 
   if (currentEstimateId) {
@@ -902,25 +956,28 @@ function renderProjectModal(rentalId) {
     state.activeEstimateId = currentEstimateId;
   }
 
-  document.getElementById('projectEstimatesBody').innerHTML = estimates
+  estimatesBody.innerHTML = estimates
     .map(
       estimate => `
       <tr class="project-row" onclick="openEstimateModal('${estimate.id}')">
-        <td>${estimate.name}</td>
-        <td>${new Date(estimate.created_at).toLocaleDateString('ru-RU')}</td>
+        <td>${getEstimateDisplayName(estimate)}</td>
+        <td>${formatShortDate(estimate.created_at)}</td>
       </tr>
     `
     )
     .join('');
 
-  document.getElementById('projectEstimateMeta').textContent = `Всего смет: ${estimates.length}`;
+  estimateMeta.textContent = `Всего смет: ${estimates.length}`;
 }
 
 function openProjectModal(rentalId) {
   state.activeRentalId = Number(rentalId);
   state.activeEstimateId = null;
-  renderProjectModal(state.activeRentalId);
+  state.activeEstimate = null;
   document.getElementById('projectModalOverlay').classList.add('open');
+  renderProjectModal(state.activeRentalId).catch(error => {
+    alert(error.message);
+  });
 }
 
 function closeProjectModal() {
@@ -928,99 +985,51 @@ function closeProjectModal() {
   closeEstimateModal();
 }
 
-function createEstimate() {
+async function createEstimate() {
   if (!state.activeRentalId) return;
 
-  const name = prompt('Название новой сметы', `Смета ${ensureRentalEstimates(state.activeRentalId).length + 1}`);
+  const rental = state.rentals.find(item => Number(item.id) === Number(state.activeRentalId));
+  if (!rental) return;
+
+  const estimates = getProjectEstimates(state.activeRentalId);
+  const name = prompt('Название новой сметы', `Смета ${estimates.length + 1}`);
   if (!name || !name.trim()) return;
 
-  const estimates = ensureRentalEstimates(state.activeRentalId);
-  estimates.push({
-    id: `${state.activeRentalId}-${Date.now()}`,
-    name: name.trim(),
-    created_at: new Date().toISOString(),
-    discount_percent: 0,
-    shifts: 1,
-    items: []
-  });
+  try {
+    const created = await apiPost('/estimates', {
+      project_id: Number(rental.id),
+      estimate_number: `${rental.id}/${estimates.length + 1}`,
+      title: name.trim(),
+      start_date: rental.start_date || null,
+      end_date: rental.end_date || null,
+      discount_percent: 0,
+      tax_enabled: false,
+      tax_percent: 0
+    });
 
-  state.activeEstimateId = estimates[estimates.length - 1].id;
-  renderProjectModal(state.activeRentalId);
-}
-
-function parseEstimatePrefix(note = '') {
-  const idMatch = String(note).match(/\[СметаID:\s*([^\]]+)\]/);
-  const nameMatch = String(note).match(/\[Смета:\s*([^\]]+)\]/);
-
-  return {
-    estimateId: idMatch ? idMatch[1].trim() : null,
-    estimateName: nameMatch ? nameMatch[1].trim() : null
-  };
-}
-
-function buildEstimateNote(estimate, rawNote = '') {
-  const estimateName = estimate?.name || 'Основная смета';
-  const estimateId = estimate?.id || 'base';
-  const suffix = rawNote ? ` ${rawNote}` : '';
-  return `[СметаID: ${estimateId}] [Смета: ${estimateName}]${suffix}`;
+    state.activeEstimateId = String(created.id);
+    await renderProjectModal(state.activeRentalId);
+    await openEstimateModal(created.id);
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function getActiveEstimate() {
-  if (!state.activeRentalId) return null;
-
-  const estimates = ensureRentalEstimates(state.activeRentalId);
-  if (!estimates.length) return null;
-
-  let estimateId = state.activeEstimateId || document.getElementById('projectEstimateSelect')?.value;
-  if (!estimateId) estimateId = estimates[0].id;
-
-  const estimate = estimates.find(item => String(item.id) === String(estimateId)) || estimates[0];
-  state.activeEstimateId = estimate.id;
-
-  if (typeof estimate.discount_percent !== 'number') estimate.discount_percent = Number(estimate.discount_percent || 0);
-  if (typeof estimate.shifts !== 'number' || estimate.shifts <= 0) estimate.shifts = Number(estimate.shifts || 1);
-  if (!Array.isArray(estimate.items)) estimate.items = [];
-
-  return estimate;
+  return state.activeEstimate;
 }
 
 function getEstimateItems(estimate) {
-  if (!estimate || !state.activeRentalId) return [];
-
-  const localItems = Array.isArray(estimate.items) ? estimate.items : [];
-  const apiItems = state.rentalItems
-    .filter(item => Number(item.rental_id) === Number(state.activeRentalId))
-    .filter(item => {
-      const parsed = parseEstimatePrefix(item.note || '');
-      if (parsed.estimateId) return String(parsed.estimateId) === String(estimate.id);
-      return parsed.estimateName && parsed.estimateName === estimate.name;
-    })
-    .map(item => ({
-      id: item.id,
-      item_id: Number(item.item_id),
-      price: Number(item.price || 0),
-      quantity: Number(item.quantity || 1),
-      days: Number(item.days || 1),
-      note: item.note || ''
-    }));
-
-  const merged = [...apiItems];
-  localItems.forEach(local => {
-    if (!local.id || !apiItems.some(apiItem => String(apiItem.id) === String(local.id))) {
-      merged.push(local);
-    }
-  });
-
-  estimate.items = merged;
-  return merged;
+  if (!estimate) return [];
+  return Array.isArray(estimate.items) ? estimate.items : [];
 }
 
 function calculateEstimateItem(item, estimate) {
   const discount = Number(estimate?.discount_percent || 0);
-  const shifts = Number(estimate?.shifts || 1);
-  const priceBeforeDiscount = Number(item.price || 0);
+  const shifts = Math.max(1, Number(item.days || 1));
+  const priceBeforeDiscount = Number(item.price_per_unit || item.price || 0);
   const priceAfterDiscount = Math.max(0, priceBeforeDiscount * (1 - discount / 100));
-  const quantity = Number(item.quantity || 1);
+  const quantity = Math.max(1, Number(item.quantity || 1));
 
   return {
     shifts,
@@ -1038,9 +1047,9 @@ function renderEstimateModal() {
   const rental = state.rentals.find(item => Number(item.id) === Number(state.activeRentalId));
   const items = getEstimateItems(estimate);
 
-  document.getElementById('estimateModalTitle').textContent = estimate.name || 'Смета';
-  document.getElementById('estimateModalSubtitle').textContent = rental ? `Проект: ${rental.title}` : '';
-  document.getElementById('estimateShifts').value = String(Number(estimate.shifts || 1));
+  document.getElementById('estimateModalTitle').textContent = getEstimateDisplayName(estimate);
+  document.getElementById('estimateModalSubtitle').textContent = rental ? `Проект: ${rental.title || '-'}` : '';
+  document.getElementById('estimateShifts').value = String(Math.max(1, Number(items[0]?.days || 1)));
   document.getElementById('estimateDiscount').value = String(Number(estimate.discount_percent || 0));
 
   const body = document.getElementById('estimateItemsBody');
@@ -1049,11 +1058,10 @@ function renderEstimateModal() {
   } else {
     body.innerHTML = items
       .map((item, idx) => {
-        const source = state.items.find(sourceItem => Number(sourceItem.id) === Number(item.item_id));
         const calc = calculateEstimateItem(item, estimate);
         return `
           <tr>
-            <td>${source ? source.name : '-'}</td>
+            <td>${item.item_name || '-'}</td>
             <td>${calc.quantity}</td>
             <td>${formatMoney(calc.priceBeforeDiscount)}</td>
             <td>${formatMoney(calc.priceAfterDiscount)}</td>
@@ -1080,17 +1088,22 @@ function renderEstimateModal() {
   `;
 }
 
-function openEstimateModal(estimateId = null) {
+async function openEstimateModal(estimateId = null) {
   if (!state.activeRentalId) return;
 
-  if (estimateId) {
-    state.activeEstimateId = estimateId;
-  } else {
-    state.activeEstimateId = document.getElementById('projectEstimateSelect')?.value || state.activeEstimateId;
+  const nextEstimateId = estimateId || document.getElementById('projectEstimateSelect')?.value || state.activeEstimateId;
+  if (!nextEstimateId) {
+    alert('Выбери смету проекта.');
+    return;
   }
 
-  renderEstimateModal();
-  document.getElementById('estimateModalOverlay').classList.add('open');
+  try {
+    await loadEstimateDetails(nextEstimateId);
+    renderEstimateModal();
+    document.getElementById('estimateModalOverlay').classList.add('open');
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function closeEstimateModal() {
@@ -1098,24 +1111,38 @@ function closeEstimateModal() {
   if (overlay) overlay.classList.remove('open');
 }
 
-function applyEstimateSettings() {
+async function applyEstimateSettings() {
   const estimate = getActiveEstimate();
   if (!estimate) return;
 
-  estimate.shifts = Math.max(1, Number(document.getElementById('estimateShifts').value || 1));
-  estimate.discount_percent = Math.min(100, Math.max(0, Number(document.getElementById('estimateDiscount').value || 0)));
+  try {
+    const updated = await apiPut(`/estimates/${estimate.id}`, {
+      project_id: Number(estimate.project_id),
+      estimate_number: estimate.estimate_number,
+      title: estimate.title || null,
+      start_date: estimate.start_date || null,
+      end_date: estimate.end_date || null,
+      discount_percent: Math.min(100, Math.max(0, Number(document.getElementById('estimateDiscount').value || 0))),
+      tax_enabled: Boolean(estimate.tax_enabled),
+      tax_percent: Number(estimate.tax_percent || 0)
+    });
 
-  renderEstimateModal();
+    state.activeEstimate = updated;
+    await renderProjectModal(state.activeRentalId);
+    renderEstimateModal();
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
-function editEstimateItem(index) {
+async function editEstimateItem(index) {
   const estimate = getActiveEstimate();
   if (!estimate) return;
 
-  const item = estimate.items[index];
+  const item = getEstimateItems(estimate)[index];
   if (!item) return;
 
-  const price = prompt('Цена до скидки', item.price ?? 0);
+  const price = prompt('Цена до скидки', item.price_per_unit ?? item.price ?? 0);
   if (price === null) return;
   const quantity = prompt('Количество', item.quantity ?? 1);
   if (quantity === null) return;
@@ -1123,24 +1150,25 @@ function editEstimateItem(index) {
   const nextPrice = Number(price || 0);
   const nextQuantity = Math.max(1, Number(quantity || 1));
 
-  item.price = nextPrice;
-  item.quantity = nextQuantity;
+  try {
+    await apiPut(`/estimate-items/${item.id}`, {
+      category: item.category || 'Camera',
+      item_name: item.item_name || item.name || 'Техника',
+      quantity: nextQuantity,
+      price_per_unit: nextPrice,
+      days: Math.max(1, Number(item.days || 1)),
+      position_order: Number(item.position_order || index + 1),
+      source_type: item.source_type || 'catalog',
+      catalog_item_id: item.catalog_item_id || null,
+      notes: item.notes || null
+    });
 
-  if (item.id) {
-    fetch(`${API}/rental-items/${item.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        price: nextPrice,
-        quantity: nextQuantity,
-        days: Number(item.days || 1),
-        subrent_cost: Number(item.subrent_cost || 0),
-        note: item.note || ''
-      })
-    }).catch(() => {});
+    await loadEstimateDetails(estimate.id);
+    await renderProjectModal(state.activeRentalId);
+    renderEstimateModal();
+  } catch (error) {
+    alert(error.message);
   }
-
-  renderEstimateModal();
 }
 
 function onEstimateItemChange() {
@@ -1161,6 +1189,7 @@ async function addEstimateItem() {
   const itemId = Number(document.getElementById('estimateItemSelect').value || 0);
   const price = Number(document.getElementById('estimateItemPrice').value || 0);
   const quantity = Math.max(1, Number(document.getElementById('estimateItemQty').value || 1));
+  const days = Math.max(1, Number(document.getElementById('estimateShifts').value || 1));
   const noteRaw = document.getElementById('estimateItemNote').value.trim();
 
   if (!itemId) {
@@ -1168,33 +1197,30 @@ async function addEstimateItem() {
     return;
   }
 
-  const payload = {
-    rental_id: Number(state.activeRentalId),
-    item_id: itemId,
-    price,
-    days: 1,
-    quantity,
-    subrent_cost: 0,
-    note: buildEstimateNote(estimate, noteRaw)
-  };
-
   try {
-    const saved = await apiPost('/rental-items', payload);
+    const sourceItem = state.items.find(item => Number(item.id) === itemId);
+    if (!sourceItem) {
+      alert('Не удалось найти технику в каталоге.');
+      return;
+    }
 
-    estimate.items.push({
-      id: saved?.id,
-      item_id: itemId,
-      price,
+    await apiPost(`/estimates/${estimate.id}/items`, {
+      category: sourceItem.category || 'Camera',
+      item_name: sourceItem.name || 'Техника',
       quantity,
-      days: 1,
-      note: payload.note
+      price_per_unit: price,
+      days,
+      source_type: 'catalog',
+      catalog_item_id: itemId,
+      notes: noteRaw || null
     });
 
     document.getElementById('estimateItemQty').value = '1';
     document.getElementById('estimateItemNote').value = '';
 
+    await loadEstimateDetails(estimate.id);
+    await renderProjectModal(state.activeRentalId);
     renderEstimateModal();
-    await loadAllData();
   } catch (error) {
     alert(error.message);
   }
@@ -1208,27 +1234,40 @@ async function addRentalItemFromModal() {
     }
 
     const estimate = getActiveEstimate();
-    const rawNote = document.getElementById('modalRiNote').value.trim();
-    const note = buildEstimateNote(estimate, rawNote);
+    const estimateId = estimate?.id || document.getElementById('projectEstimateSelect')?.value;
+    if (!estimateId) {
+      alert('Сначала создай или выбери смету проекта.');
+      return;
+    }
 
-    await apiPost('/rental-items', {
-      rental_id: Number(state.activeRentalId),
-      item_id: Number(document.getElementById('modalRiItem').value),
-      price: Number(document.getElementById('modalRiPrice').value || 0),
-      days: Number(document.getElementById('modalRiDays').value || 1),
-      quantity: Number(document.getElementById('modalRiQty').value || 1),
-      subrent_cost: Number(document.getElementById('modalRiSubrentCost').value || 0),
-      note
+    const catalogItemId = Number(document.getElementById('modalRiItem').value || 0);
+    const sourceItem = state.items.find(item => Number(item.id) === catalogItemId);
+    if (!catalogItemId || !sourceItem) {
+      alert('Выбери технику из каталога.');
+      return;
+    }
+
+    await apiPost(`/estimates/${estimateId}/items`, {
+      category: sourceItem.category || 'Camera',
+      item_name: sourceItem.name || 'Техника',
+      quantity: Math.max(1, Number(document.getElementById('modalRiQty').value || 1)),
+      price_per_unit: Number(document.getElementById('modalRiPrice').value || sourceItem.base_rate || sourceItem.price || 0),
+      days: Math.max(1, Number(document.getElementById('modalRiDays').value || 1)),
+      source_type: 'catalog',
+      catalog_item_id: catalogItemId,
+      notes: document.getElementById('modalRiNote').value.trim() || null
     });
 
     document.getElementById('modalRiPrice').value = '';
     document.getElementById('modalRiDays').value = '1';
     document.getElementById('modalRiQty').value = '1';
-    document.getElementById('modalRiSubrentCost').value = '0';
     document.getElementById('modalRiNote').value = '';
 
-    await loadAllData();
-    openProjectModal(state.activeRentalId);
+    if (String(estimateId) === String(state.activeEstimateId) && document.getElementById('estimateModalOverlay').classList.contains('open')) {
+      await loadEstimateDetails(estimateId);
+      renderEstimateModal();
+    }
+    await renderProjectModal(state.activeRentalId);
     alert('Техника добавлена в смету проекта');
   } catch (error) {
     alert(error.message);
