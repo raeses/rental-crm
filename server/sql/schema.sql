@@ -79,16 +79,3 @@ CREATE INDEX idx_estimate_items_position_order ON estimate_items(position_order)
 CREATE INDEX idx_items_category ON items(category);
 CREATE INDEX idx_items_status ON items(status);
 CREATE INDEX idx_items_is_archived ON items(is_archived);
-
-CREATE TABLE IF NOT EXISTS portal_users (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  business_key VARCHAR(64) NOT NULL,
-  username VARCHAR(120) NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  role VARCHAR(64) NOT NULL DEFAULT 'admin',
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uniq_portal_user_business_username (business_key, username),
-  KEY idx_portal_user_business_key (business_key)
-);

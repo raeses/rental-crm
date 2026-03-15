@@ -5,7 +5,6 @@ const ebState = {
   items: []
 };
 
-const ESTIMATE_API = window.APP_CONFIG?.apiBase || '/api';
 let estimateBuilderInitialized = false;
 let estimateProjectsPromise = null;
 
@@ -28,14 +27,10 @@ function round2(v) {
 }
 
 async function req(path, options = {}) {
-  const nextPath = path.startsWith('http') ? path : `${ESTIMATE_API}${path.replace(/^\/api/, '')}`;
-  const res = await fetch(nextPath, { credentials: 'same-origin', ...options });
+  const res = await fetch(path, options);
   const isPdf = res.headers.get('content-type')?.includes('application/pdf');
   if (!res.ok) {
     const payload = isPdf ? {} : await res.json().catch(() => ({}));
-    if (res.status === 401 && window.APP_CONFIG?.loginPath) {
-      window.location.replace(window.APP_CONFIG.loginPath);
-    }
     throw new Error(payload.error || `Request failed: ${path}`);
   }
   return isPdf ? res.blob() : res.json();
@@ -151,7 +146,7 @@ async function loadEstimate(id) {
     return;
   }
 
-  const estimate = await req(`/estimates/${id}`);
+  const estimate = await req(`/api/estimates/${id}`);
   ebState.currentEstimate = estimate;
   hydrateEstimateMeta(estimate);
   ebState.items = normalizeItems(estimate.items || []);
@@ -159,7 +154,7 @@ async function loadEstimate(id) {
 }
 
 async function loadEstimatesByProject(projectId) {
-  ebState.estimates = await req(`/projects/${projectId}/estimates`);
+  ebState.estimates = await req(`/api/projects/${projectId}/estimates`);
   const select = document.getElementById('ebEstimateSelect');
   select.innerHTML = ebState.estimates.map(e => `<option value="${e.id}">${e.estimate_number} ${e.title ? `— ${e.title}` : ''}</option>`).join('');
   await loadEstimate(select.value);
@@ -169,7 +164,7 @@ async function loadProjects() {
   if (estimateProjectsPromise) return estimateProjectsPromise;
 
   estimateProjectsPromise = (async () => {
-    ebState.projects = await req('/projects');
+    ebState.projects = await req('/api/projects');
     const projectSelect = document.getElementById('ebProjectSelect');
     projectSelect.innerHTML = ebState.projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
     if (projectSelect.value) await loadEstimatesByProject(projectSelect.value);
@@ -216,13 +211,13 @@ async function upsertItems() {
     };
 
     if (row.id) {
-      await req(`/estimate-items/${row.id}`, {
+      await req(`/api/estimate-items/${row.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
     } else {
-      const saved = await req(`/estimates/${estimateId}/items`, {
+      const saved = await req(`/api/estimates/${estimateId}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -232,7 +227,7 @@ async function upsertItems() {
     }
   }
 
-  await req(`/estimates/${estimateId}/reorder-items`, {
+  await req(`/api/estimates/${estimateId}/reorder-items`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ordered_ids: ebState.items.filter(i => i.id).map(i => i.id) })
@@ -256,7 +251,7 @@ const estimateBuilder = {
       const estimateNumber = prompt('Estimate number', `${projectId}/${ebState.estimates.length + 1}`);
       if (!estimateNumber) return;
 
-      const created = await req('/estimates', {
+      const created = await req('/api/estimates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -324,7 +319,7 @@ const estimateBuilder = {
     if (!row) return;
     ebState.items.splice(index, 1);
     if (row.id) {
-      await req(`/estimate-items/${row.id}`, { method: 'DELETE' });
+      await req(`/api/estimate-items/${row.id}`, { method: 'DELETE' });
     }
     renderRows();
   },
@@ -360,7 +355,7 @@ const estimateBuilder = {
       }
 
       const payload = getEstimatePayload();
-      await req(`/estimates/${ebState.currentEstimate.id}`, {
+      await req(`/api/estimates/${ebState.currentEstimate.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -377,7 +372,7 @@ const estimateBuilder = {
   async archiveEstimate() {
     try {
       if (!ebState.currentEstimate) return;
-      await req(`/estimates/${ebState.currentEstimate.id}/archive`, { method: 'POST' });
+      await req(`/api/estimates/${ebState.currentEstimate.id}/archive`, { method: 'POST' });
       await loadEstimatesByProject(document.getElementById('ebProjectSelect').value);
       alert('Смета архивирована');
     } catch (error) {
@@ -387,12 +382,12 @@ const estimateBuilder = {
 
   previewPdf() {
     if (!ebState.currentEstimate) return;
-    window.open(`${ESTIMATE_API}/estimates/${ebState.currentEstimate.id}/pdf`, '_blank');
+    window.open(`/api/estimates/${ebState.currentEstimate.id}/pdf`, '_blank');
   },
 
   generatePdf() {
     if (!ebState.currentEstimate) return;
-    window.open(`${ESTIMATE_API}/estimates/${ebState.currentEstimate.id}/pdf`, '_blank');
+    window.open(`/api/estimates/${ebState.currentEstimate.id}/pdf`, '_blank');
   }
 };
 

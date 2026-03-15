@@ -24,8 +24,3 @@ VALUES
 (1, 'Camera', 'Red Komodo 6K', 1, 3000, 3000, 3, 9000, 1, 'catalog', NULL),
 (1, 'Camera Accessories', 'Nucleus M 2motor', 1, 1500, 1500, 3, 4500, 2, 'manual', NULL),
 (1, 'Monitors and Playback', 'SmallHD Indie 7', 1, 2200, 2200, 3, 6600, 3, 'catalog', NULL);
-
-INSERT INTO portal_users (business_key, username, password_hash, role, is_active)
-VALUES
-('cinetools', 'admin', 'd26c067037dfcb6d221d69f5ab335d0e:663c9f32ffc23cefc67de7811d940471a48a2d26a03f475c7c93eb415343ead0fa369022becf6ae4875a5b955fb4b5e6758f2f46396bd6a1a460daa84e5145e1', 'admin', TRUE),
-('apitchenkov', 'admin', 'cf6674f2d53698811f4fd70047c43dc8:99b237ff76249b9fb5fd5532b0b58d2966eed32cfbb6134c59c771275622c3433e3b364b9946c2592f2a7a24cf2713d4ff8076ddf4e59bcf7cdb66b88be3c7dd', 'admin', TRUE);
