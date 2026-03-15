@@ -11,6 +11,8 @@ mysql -u root -p rental_crm < sql/seed.sql
 npm start
 ```
 
+Set `SESSION_SECRET` in `.env` before production deploy so auth cookies are signed with a private key.
+
 ## Existing DB Migration
 If the server already has an older `rental` database with a legacy `items` table, apply the items migration instead of rerunning the full schema:
 
@@ -19,6 +21,15 @@ mysql rental < sql/migrations/20260314_items_mvp.sql
 ```
 
 Then restart the backend process.
+
+## Portal auth bootstrap
+Apply `sql/migrations/20260315_portal_auth.sql` to create portal users for the new multi-system login flow.
+
+Bootstrap accounts created by the migration:
+- `cinetools` -> `admin` / `CineTools!2026`
+- `apitchenkov` -> `admin` / `Apitchenkov!2026`
+
+Rotate these passwords after the first successful login.
 
 ## API examples
 

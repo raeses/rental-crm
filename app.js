@@ -1,4 +1,4 @@
-const API = '/api';
+const API = window.APP_CONFIG?.apiBase || '/api';
 
 const state = {
   items: [],
@@ -11,6 +11,7 @@ const state = {
   activeRentalId: null,
   activeEstimateId: null,
   activeEstimate: null,
+  estimateCatalogSelection: [],
   rentalItems: [],
   subrentals: []
 };
@@ -297,6 +298,13 @@ function buildApiError(path, res, payload, fallbackMessage) {
     return new Error(backendMessage);
   }
 
+  if (res.status === 401) {
+    if (window.APP_CONFIG?.loginPath) {
+      window.location.replace(window.APP_CONFIG.loginPath);
+    }
+    return new Error('Требуется авторизация');
+  }
+
   if (res.status === 404) {
     return new Error(`Раздел "${getFeatureLabel(path)}" пока не подключен к текущему backend.`);
   }
@@ -309,7 +317,7 @@ function buildApiError(path, res, payload, fallbackMessage) {
 }
 
 async function apiGet(path) {
-  const res = await fetch(API + path);
+  const res = await fetch(API + path, { credentials: 'same-origin' });
   const payload = await readApiPayload(res);
   if (!res.ok) throw buildApiError(path, res, payload, `Ошибка загрузки: ${path}`);
   return payload;
@@ -318,6 +326,7 @@ async function apiGet(path) {
 async function apiPost(path, body) {
   const res = await fetch(API + path, {
     method: 'POST',
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
@@ -333,6 +342,7 @@ async function apiPost(path, body) {
 async function apiPut(path, body) {
   const res = await fetch(API + path, {
     method: 'PUT',
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
@@ -491,6 +501,68 @@ function getEstimateCatalogItems(search = '', category = 'all') {
     if (!normalizedSearch) return true;
     return String(group.name || '').toLowerCase().includes(normalizedSearch);
   });
+}
+
+function getEstimateCatalogSelectionSet() {
+  return new Set((state.estimateCatalogSelection || []).map(value => Number(value)));
+}
+
+function setEstimateCatalogSelection(selection) {
+  state.estimateCatalogSelection = [...new Set(selection.map(value => Number(value)).filter(Boolean))];
+}
+
+function clearEstimateCatalogSelection() {
+  state.estimateCatalogSelection = [];
+}
+
+function syncEstimateCatalogSelection() {
+  const allowedIds = new Set(getCatalogInventoryGroups().map(item => Number(item.representativeId || 0)).filter(Boolean));
+  setEstimateCatalogSelection(
+    (state.estimateCatalogSelection || []).filter(value => allowedIds.has(Number(value)))
+  );
+}
+
+function updateEstimateCatalogSelectionSummary(items = []) {
+  const selection = getEstimateCatalogSelectionSet();
+  const selectedVisibleCount = items.filter(item => selection.has(Number(item.representativeId))).length;
+  const selectedTotalCount = selection.size;
+  const summary = document.getElementById('estimateCatalogSelectionSummary');
+  const addSelectedButton = document.getElementById('estimateCatalogAddSelected');
+  const clearButton = document.getElementById('estimateCatalogClearSelection');
+  const selectAllButton = document.getElementById('estimateCatalogSelectAll');
+
+  if (summary) {
+    summary.textContent = selectedTotalCount
+      ? `Выбрано позиций: ${selectedTotalCount}${selectedVisibleCount !== selectedTotalCount ? ` · на экране: ${selectedVisibleCount}` : ''}`
+      : 'Можно отметить несколько позиций и добавить их одним действием.';
+  }
+
+  if (addSelectedButton) addSelectedButton.disabled = selectedTotalCount === 0;
+  if (clearButton) clearButton.disabled = selectedTotalCount === 0;
+  if (selectAllButton) selectAllButton.disabled = items.length === 0;
+}
+
+function toggleEstimateCatalogSelection(itemId, checked) {
+  const selection = getEstimateCatalogSelectionSet();
+  if (checked) selection.add(Number(itemId));
+  else selection.delete(Number(itemId));
+
+  setEstimateCatalogSelection([...selection]);
+  updateEstimateCatalogSelectionSummary(getEstimateCatalogItems(
+    document.getElementById('estimateCatalogSearch')?.value || '',
+    document.getElementById('estimateCatalogCategory')?.value || 'all'
+  ));
+}
+
+function selectAllEstimateCatalogItems() {
+  const items = getEstimateCatalogItems(
+    document.getElementById('estimateCatalogSearch')?.value || '',
+    document.getElementById('estimateCatalogCategory')?.value || 'all'
+  );
+  const selection = getEstimateCatalogSelectionSet();
+  items.forEach(item => selection.add(Number(item.representativeId)));
+  setEstimateCatalogSelection([...selection]);
+  renderEstimateCatalogModal();
 }
 
 async function loadProjectEstimates(projectId) {
@@ -1038,7 +1110,10 @@ async function deleteSubrental(id) {
   try {
     if (!confirm('Удалить субаренду?')) return;
 
-    const res = await fetch(`${API}/subrentals/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${API}/subrentals/${id}`, {
+      method: 'DELETE',
+      credentials: 'same-origin'
+    });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error || 'Ошибка удаления');
@@ -1082,6 +1157,7 @@ async function editSubrental(id) {
 
     const res = await fetch(`${API}/subrentals/${id}`, {
       method: 'PUT',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
@@ -1783,7 +1859,10 @@ async function deleteEstimateItemRow(itemId) {
   if (!confirmed) return;
 
   try {
-    const res = await fetch(`${API}/estimate-items/${item.id}`, { method: 'DELETE' });
+    const res = await fetch(`${API}/estimate-items/${item.id}`, {
+      method: 'DELETE',
+      credentials: 'same-origin'
+    });
     if (!res.ok) {
       const payload = await readApiPayload(res);
       throw buildApiError(`/estimate-items/${item.id}`, res, payload, 'Ошибка удаления позиции');
@@ -1808,14 +1887,26 @@ function renderEstimateCatalogModal() {
   categorySelect.value = categories.includes(currentCategory) || currentCategory === 'all' ? currentCategory : 'all';
 
   const items = getEstimateCatalogItems(searchInput.value, categorySelect.value);
+  syncEstimateCatalogSelection();
+  const selection = getEstimateCatalogSelectionSet();
   if (!items.length) {
-    body.innerHTML = '<tr><td colspan="4" class="empty">Подходящая техника не найдена.</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" class="empty">Подходящая техника не найдена.</td></tr>';
+    updateEstimateCatalogSelectionSummary(items);
     return;
   }
 
   body.innerHTML = items
     .map(item => `
       <tr>
+        <td>
+          <label class="catalog-item-checkbox">
+            <input
+              type="checkbox"
+              ${selection.has(Number(item.representativeId)) ? 'checked' : ''}
+              onchange="toggleEstimateCatalogSelection(${item.representativeId}, this.checked)"
+            />
+          </label>
+        </td>
         <td>
           <div class="catalog-item-name">${escapeHtml(item.name || '-')}</div>
           <div class="catalog-item-meta">В базе: ${item.availableCount} шт.</div>
@@ -1826,6 +1917,8 @@ function renderEstimateCatalogModal() {
       </tr>
     `)
     .join('');
+
+  updateEstimateCatalogSelectionSummary(items);
 }
 
 function openEstimateCatalogModal() {
@@ -1837,6 +1930,7 @@ function openEstimateCatalogModal() {
 
   const searchInput = document.getElementById('estimateCatalogSearch');
   const categorySelect = document.getElementById('estimateCatalogCategory');
+  clearEstimateCatalogSelection();
   if (searchInput) searchInput.value = '';
   if (categorySelect) categorySelect.value = 'all';
   renderEstimateCatalogModal();
@@ -1845,7 +1939,52 @@ function openEstimateCatalogModal() {
 
 function closeEstimateCatalogModal() {
   const overlay = document.getElementById('estimateCatalogOverlay');
+  clearEstimateCatalogSelection();
   if (overlay) overlay.classList.remove('open');
+}
+
+async function upsertCatalogItemToEstimate(estimate, sourceItem) {
+  if (!sourceItem) {
+    throw new Error('Не удалось найти технику в каталоге.');
+  }
+
+  const existingRow = getEstimateItems(estimate).find(item =>
+    String(item.source_type || 'catalog') === 'catalog' &&
+    getInventoryGroupKey(item.item_name, item.category) === getInventoryGroupKey(sourceItem.name, sourceItem.category)
+  );
+
+  if (existingRow) {
+    const availableCount = getAvailableCountForEstimateItem(existingRow);
+    const nextQuantity = Math.max(1, Number(existingRow.quantity || 1)) + 1;
+
+    if (nextQuantity > availableCount) {
+      throw new Error(`Нельзя добавить больше ${availableCount} шт. — столько активных единиц есть в каталоге.`);
+    }
+
+    await apiPut(`/estimate-items/${existingRow.id}`, {
+      category: existingRow.category || sourceItem.category || 'Camera',
+      item_name: existingRow.item_name || sourceItem.name || 'Техника',
+      quantity: nextQuantity,
+      price_per_unit: Number(existingRow.price_per_unit || sourceItem.base_rate || sourceItem.price || 0),
+      days: getEstimateShiftCount(estimate),
+      position_order: Number(existingRow.position_order || 0),
+      source_type: existingRow.source_type || 'catalog',
+      catalog_item_id: existingRow.catalog_item_id || Number(sourceItem.id),
+      notes: existingRow.notes || null
+    });
+    return;
+  }
+
+  await apiPost(`/estimates/${estimate.id}/items`, {
+    category: sourceItem.category || 'Camera',
+    item_name: sourceItem.name || 'Техника',
+    quantity: 1,
+    price_per_unit: Number(sourceItem.base_rate ?? sourceItem.price ?? 0),
+    days: getEstimateShiftCount(estimate),
+    source_type: 'catalog',
+    catalog_item_id: Number(sourceItem.id),
+    notes: null
+  });
 }
 
 async function addCatalogItemToEstimate(itemId) {
@@ -1853,54 +1992,39 @@ async function addCatalogItemToEstimate(itemId) {
   if (!estimate) return;
 
   const sourceItem = state.items.find(item => Number(item.id) === Number(itemId));
-  if (!sourceItem) {
-    alert('Не удалось найти технику в каталоге.');
-    return;
-  }
 
   try {
-    const existingRow = getEstimateItems(estimate).find(item =>
-      String(item.source_type || 'catalog') === 'catalog' &&
-      getInventoryGroupKey(item.item_name, item.category) === getInventoryGroupKey(sourceItem.name, sourceItem.category)
-    );
-
-    if (existingRow) {
-      const availableCount = getAvailableCountForEstimateItem(existingRow);
-      const nextQuantity = Math.max(1, Number(existingRow.quantity || 1)) + 1;
-
-      if (nextQuantity > availableCount) {
-        alert(`Нельзя добавить больше ${availableCount} шт. — столько активных единиц есть в каталоге.`);
-        return;
-      }
-
-      await apiPut(`/estimate-items/${existingRow.id}`, {
-        category: existingRow.category || sourceItem.category || 'Camera',
-        item_name: existingRow.item_name || sourceItem.name || 'Техника',
-        quantity: nextQuantity,
-        price_per_unit: Number(existingRow.price_per_unit || sourceItem.base_rate || sourceItem.price || 0),
-        days: getEstimateShiftCount(estimate),
-        position_order: Number(existingRow.position_order || 0),
-        source_type: existingRow.source_type || 'catalog',
-        catalog_item_id: existingRow.catalog_item_id || Number(itemId),
-        notes: existingRow.notes || null
-      });
-    } else {
-      await apiPost(`/estimates/${estimate.id}/items`, {
-        category: sourceItem.category || 'Camera',
-        item_name: sourceItem.name || 'Техника',
-        quantity: 1,
-        price_per_unit: Number(sourceItem.base_rate ?? sourceItem.price ?? 0),
-        days: getEstimateShiftCount(estimate),
-        source_type: 'catalog',
-        catalog_item_id: Number(itemId),
-        notes: null
-      });
-    }
-
+    await upsertCatalogItemToEstimate(estimate, sourceItem);
     closeEstimateCatalogModal();
     await loadEstimateDetails(estimate.id);
     await renderProjectModal(state.activeRentalId);
     renderEstimateModal();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function addSelectedCatalogItemsToEstimate() {
+  const estimate = getActiveEstimate();
+  if (!estimate) return;
+
+  const selectedIds = state.estimateCatalogSelection || [];
+  if (!selectedIds.length) {
+    alert('Сначала отметь хотя бы одну позицию.');
+    return;
+  }
+
+  try {
+    for (const itemId of selectedIds) {
+      const sourceItem = state.items.find(item => Number(item.id) === Number(itemId));
+      await upsertCatalogItemToEstimate(estimate, sourceItem);
+    }
+
+    await loadEstimateDetails(estimate.id);
+    closeEstimateCatalogModal();
+    await renderProjectModal(state.activeRentalId);
+    renderEstimateModal();
+    alert(`В смету добавлено позиций: ${selectedIds.length}`);
   } catch (error) {
     alert(error.message);
   }
@@ -2101,15 +2225,29 @@ function setupNavigation() {
 
 
 
+let crmAppInitialized = false;
+
+function initializeCrmApp() {
+  if (crmAppInitialized) return;
+  crmAppInitialized = true;
+
+  setupNavigation();
+  setupProjectDateGuard();
+  resetItemForm();
+  loadAllData({ silent: true });
+}
+
 window.crmApp = {
   getState: () => state,
   formatMoney,
   formatPercent,
   normalizePaybackItem,
   openProjectModal,
-  openEstimateModal
+  openEstimateModal,
+  initialize: initializeCrmApp
 };
 
+window.initializeCrmApp = initializeCrmApp;
 window.openItemModal = openItemModal;
 window.closeItemModal = closeItemModal;
 window.saveItemFromModal = saveItemFromModal;
@@ -2120,7 +2258,6 @@ window.closeEstimateCatalogModal = closeEstimateCatalogModal;
 window.addCatalogItemToEstimate = addCatalogItemToEstimate;
 window.updateEstimateItemInline = updateEstimateItemInline;
 
-setupNavigation();
-setupProjectDateGuard();
-resetItemForm();
-loadAllData({ silent: true });
+if (window.APP_CONFIG?.autoInit !== false) {
+  initializeCrmApp();
+}
