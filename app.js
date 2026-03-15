@@ -65,6 +65,7 @@ function normalizeProjectForLegacyUi(project = {}) {
     client_name: project.client || '',
     total: Number(project.total || 0),
     estimate_count: Number(project.estimate_count || 0),
+    discount_percent: Number(project.discount_percent || 0),
     paid_amount: Number(project.paid_amount || 0),
     tax_profile: normalizeProjectTaxProfile(project.tax_profile, project.tax_percent),
     tax_percent: Number(project.tax_percent || 0),
@@ -104,7 +105,7 @@ function formatMoney(value) {
 
 function formatPercent(value) {
   const num = Number(value || 0);
-  return `${num.toFixed(1)}%`;
+  return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(num)}%`;
 }
 
 function escapeHtml(value = '') {
@@ -155,6 +156,10 @@ function renderProjectTaxOptions(selectedProfile = 'none') {
 
 function getProjectTaxPercent(project = {}) {
   return Math.max(0, Number(project.tax_percent || 0));
+}
+
+function getProjectDiscountPercent(project = {}) {
+  return Math.min(100, Math.max(0, Number(project.discount_percent || 0)));
 }
 
 function getProjectTaxLabel(project = {}) {
@@ -405,6 +410,14 @@ function getEstimateDisplayName(estimate = {}) {
   return [estimate.estimate_number, estimate.title].filter(Boolean).join(' — ') || `Смета #${estimate.id}`;
 }
 
+function getProjectShiftCount(project = {}) {
+  const start = toDateOnly(project.start_date);
+  const end = toDateOnly(project.end_date);
+  if (!start || !end || end < start) return 1;
+  const diff = end.getTime() - start.getTime();
+  return Math.floor(diff / (24 * 60 * 60 * 1000)) + 1;
+}
+
 function getEstimateShiftCount(estimate = {}) {
   const start = toDateOnly(estimate.start_date);
   const end = toDateOnly(estimate.end_date);
@@ -417,10 +430,12 @@ function getProjectEstimateTotals(estimates = []) {
   return estimates.reduce(
     (acc, estimate) => {
       acc.count += 1;
+      acc.subtotal += Number(estimate.subtotal || 0);
       acc.total += Number(estimate.grand_total || 0);
+      acc.shiftCount += getEstimateShiftCount(estimate);
       return acc;
     },
-    { count: 0, total: 0 }
+    { count: 0, subtotal: 0, total: 0, shiftCount: 0 }
   );
 }
 
@@ -1190,6 +1205,7 @@ async function createRental() {
     }
 
     const taxPayload = readProjectTaxForm('rental');
+    const discountPercent = Math.min(100, Math.max(0, Number(document.getElementById('rentalDiscount').value || 0)));
 
     await apiPost('/projects', {
       name: projectName,
@@ -1197,6 +1213,7 @@ async function createRental() {
       start_date: startDate,
       end_date: endDate,
       status: mapLegacyProjectStatus(document.getElementById('rentalStatus').value),
+      discount_percent: discountPercent,
       ...taxPayload
     });
 
@@ -1204,6 +1221,7 @@ async function createRental() {
     document.getElementById('rentalStart').value = '';
     document.getElementById('rentalEnd').value = '';
     document.getElementById('rentalStatus').value = 'draft';
+    document.getElementById('rentalDiscount').value = '0';
     document.getElementById('rentalTaxProfile').value = 'none';
     document.getElementById('rentalTaxCustom').value = '0';
     updateProjectTaxFieldVisibility('rental');
@@ -1226,6 +1244,7 @@ async function saveProjectDetails() {
     const startDate = document.getElementById('projectModalStart').value || null;
     const endDate = document.getElementById('projectModalEnd').value || null;
     const status = mapLegacyProjectStatus(document.getElementById('projectModalStatus').value);
+    const discountPercent = Math.min(100, Math.max(0, Number(document.getElementById('projectModalDiscount').value || 0)));
     const taxPayload = readProjectTaxForm('projectModal');
 
     if (!name) {
@@ -1246,6 +1265,7 @@ async function saveProjectDetails() {
       start_date: startDate,
       end_date: endDate,
       status,
+      discount_percent: discountPercent,
       ...taxPayload
     });
 
@@ -1258,7 +1278,7 @@ async function saveProjectDetails() {
           title: estimate.title || null,
           start_date: toApiDate(estimate.start_date),
           end_date: toApiDate(estimate.end_date),
-          discount_percent: Number(estimate.discount_percent || 0),
+          discount_percent: discountPercent,
           tax_enabled: Number(taxPayload.tax_percent || 0) > 0,
           tax_percent: Number(taxPayload.tax_percent || 0)
         })
@@ -1305,6 +1325,10 @@ async function renderProjectModal(rentalId) {
         ${renderProjectTaxOptions(rental.tax_profile)}
       </select>
     </div>
+    <label class="field-group">
+      <span class="field-label">Скидка проекта, %</span>
+      <input id="projectModalDiscount" type="number" step="0.01" min="0" max="100" value="${getProjectDiscountPercent(rental)}" />
+    </label>
     <label class="field-group" id="projectModalTaxCustomField">
       <span class="field-label">Свой налог, %</span>
       <input id="projectModalTaxCustom" type="number" step="0.01" min="0" value="${getProjectTaxPercent(rental)}" />
@@ -1317,16 +1341,18 @@ async function renderProjectModal(rentalId) {
   const estimateSelect = document.getElementById('projectEstimateSelect');
   const estimatesBody = document.getElementById('projectEstimatesBody');
   const estimateMeta = document.getElementById('projectEstimateMeta');
+  const projectShiftCount = getProjectShiftCount(rental);
+  const projectDiscount = getProjectDiscountPercent(rental);
 
   estimateSelect.innerHTML = '<option value="">Загрузка смет...</option>';
-  estimatesBody.innerHTML = '<tr><td colspan="3" class="empty">Загрузка смет...</td></tr>';
+  estimatesBody.innerHTML = '<tr><td colspan="5" class="empty">Загрузка смет...</td></tr>';
   estimateMeta.textContent = 'Загрузка смет...';
 
   const estimates = await loadProjectEstimates(rental.id);
   if (!estimates.length) {
     estimateSelect.innerHTML = '<option value="">Смет пока нет</option>';
-    estimatesBody.innerHTML = '<tr><td colspan="3" class="empty">Для этого проекта пока нет смет.</td></tr>';
-    estimateMeta.textContent = 'Всего смет: 0 · Общая сумма: 0 ₽';
+    estimatesBody.innerHTML = '<tr><td colspan="5" class="empty">Для этого проекта пока нет смет.</td></tr>';
+    estimateMeta.textContent = `Всего смет: 0 · Общая сумма: ${formatMoney(0)} · Смен по проекту: ${projectShiftCount}`;
     document.getElementById('projectModalStats').innerHTML = `
       <div class="card project-summary-card">
         <div class="card-label">Общая сумма проекта</div>
@@ -1335,6 +1361,14 @@ async function renderProjectModal(rentalId) {
       <div class="card project-summary-card">
         <div class="card-label">Всего смет</div>
         <div class="card-value">0</div>
+      </div>
+      <div class="card project-summary-card">
+        <div class="card-label">Смен по проекту</div>
+        <div class="card-value">${projectShiftCount}</div>
+      </div>
+      <div class="card project-summary-card">
+        <div class="card-label">Скидка проекта</div>
+        <div class="card-value">${formatPercent(projectDiscount)}</div>
       </div>
       <div class="card project-summary-card">
         <div class="card-label">Налог проекта</div>
@@ -1365,6 +1399,8 @@ async function renderProjectModal(rentalId) {
       <tr class="project-row" onclick="openEstimateModal('${estimate.id}')">
         <td>${getEstimateDisplayName(estimate)}</td>
         <td>${formatShortDate(estimate.created_at)}</td>
+        <td>${getEstimateShiftCount(estimate)}</td>
+        <td>${formatMoney(estimate.subtotal || 0)}</td>
         <td>${formatMoney(estimate.grand_total || 0)}</td>
       </tr>
     `
@@ -1372,7 +1408,7 @@ async function renderProjectModal(rentalId) {
     .join('');
 
   const totals = getProjectEstimateTotals(estimates);
-  estimateMeta.textContent = `Всего смет: ${totals.count} · Общая сумма: ${formatMoney(totals.total)}`;
+  estimateMeta.textContent = `Всего смет: ${totals.count} · Общая сумма: ${formatMoney(totals.total)} · Смен по проекту: ${projectShiftCount}`;
   document.getElementById('projectModalStats').innerHTML = `
     <div class="card project-summary-card">
       <div class="card-label">Общая сумма проекта</div>
@@ -1381,6 +1417,14 @@ async function renderProjectModal(rentalId) {
     <div class="card project-summary-card">
       <div class="card-label">Всего смет</div>
       <div class="card-value">${totals.count}</div>
+    </div>
+    <div class="card project-summary-card">
+      <div class="card-label">Смен по проекту</div>
+      <div class="card-value">${projectShiftCount}</div>
+    </div>
+    <div class="card project-summary-card">
+      <div class="card-label">Скидка проекта</div>
+      <div class="card-value">${formatPercent(projectDiscount)}</div>
     </div>
     <div class="card project-summary-card">
       <div class="card-label">Налог проекта</div>
@@ -1420,7 +1464,7 @@ async function createEstimate() {
       title: null,
       start_date: toApiDate(rental.start_date),
       end_date: toApiDate(rental.end_date),
-      discount_percent: 0,
+      discount_percent: getProjectDiscountPercent(rental),
       tax_enabled: getProjectTaxPercent(rental) > 0,
       tax_percent: getProjectTaxPercent(rental)
     });
@@ -1506,7 +1550,7 @@ function buildEstimateTableRows(items, estimate) {
       return `
         ${categoryRow}
         <tr>
-          <td>${escapeHtml(item.item_name || '-')}</td>
+          <td><div class="estimate-cell-main estimate-cell-name">${escapeHtml(item.item_name || '-')}</div></td>
           <td>
             <div class="estimate-inline-stack">
               <div class="money-inline">
@@ -1523,9 +1567,9 @@ function buildEstimateTableRows(items, estimate) {
               </div>
             </div>
           </td>
-          <td>${formatMoney(calc.priceAfterDiscount)}</td>
+          <td><div class="estimate-cell-main estimate-cell-number">${formatMoney(calc.priceAfterDiscount)}</div></td>
           <td>
-            <div class="estimate-inline-stack">
+            <div class="estimate-inline-stack estimate-inline-stack-qty">
               <input
                 id="estimate-item-quantity-${item.id}"
                 class="estimate-inline-input estimate-inline-qty"
@@ -1539,10 +1583,10 @@ function buildEstimateTableRows(items, estimate) {
               <span class="estimate-inline-hint">В базе: ${availableCount}</span>
             </div>
           </td>
-          <td>${calc.shifts}</td>
-          <td>${formatMoney(calc.total)}</td>
+          <td><div class="estimate-cell-main estimate-cell-number">${calc.shifts}</div></td>
+          <td><div class="estimate-cell-main estimate-cell-number">${formatMoney(calc.total)}</div></td>
           <td>
-            <div class="actions-inline table-actions-inline">
+            <div class="actions-inline table-actions-inline estimate-cell-main estimate-cell-actions">
               <button class="secondary" onclick="deleteEstimateItemRow(${item.id})">Удалить</button>
             </div>
           </td>
@@ -1574,7 +1618,7 @@ function renderEstimateModal() {
   }
 
   const totals = calculateEstimateTotals(estimate, items);
-  const taxLabel = totals.taxPercent > 0 ? `Включая налог ${totals.taxPercent}%` : null;
+  const taxLabel = totals.taxPercent > 0 ? `Включая налог (${getProjectTaxLabel(rental)})` : null;
 
   document.getElementById('estimateSummary').innerHTML = `
     <div class="card-label">Итоги сметы</div>

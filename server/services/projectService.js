@@ -11,8 +11,8 @@ const PROJECT_SELECT = `
 
 export async function createProject(data) {
   const [result] = await pool.execute(
-    `INSERT INTO projects (internal_number, name, client, operator, start_date, end_date, status, tax_profile, tax_percent)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO projects (internal_number, name, client, operator, start_date, end_date, status, discount_percent, tax_profile, tax_percent)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       data.internal_number || null,
       data.name,
@@ -21,6 +21,7 @@ export async function createProject(data) {
       data.start_date || null,
       data.end_date || null,
       data.status || 'draft',
+      Number(data.discount_percent || 0),
       data.tax_profile || 'none',
       Number(data.tax_percent || 0)
     ]
@@ -42,7 +43,7 @@ export async function getProjectById(id) {
 export async function updateProject(id, data) {
   await pool.execute(
     `UPDATE projects
-     SET internal_number=?, name=?, client=?, operator=?, start_date=?, end_date=?, status=?, tax_profile=?, tax_percent=?
+     SET internal_number=?, name=?, client=?, operator=?, start_date=?, end_date=?, status=?, discount_percent=?, tax_profile=?, tax_percent=?
      WHERE id=?`,
     [
       data.internal_number || null,
@@ -52,6 +53,7 @@ export async function updateProject(id, data) {
       data.start_date || null,
       data.end_date || null,
       data.status || 'draft',
+      Number(data.discount_percent || 0),
       data.tax_profile || 'none',
       Number(data.tax_percent || 0),
       id

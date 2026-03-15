@@ -237,6 +237,10 @@
                   <option value="custom">Свой налог</option>
                 </select>
               </div>
+              <label class="field-group">
+                <span class="field-label">Скидка проекта, %</span>
+                <input id="rentalDiscount" type="number" step="0.01" min="0" max="100" value="0" />
+              </label>
               <label class="field-group hidden" id="rentalTaxCustomField">
                 <span class="field-label">Свой налог, %</span>
                 <input id="rentalTaxCustom" type="number" step="0.01" min="0" value="0" />
@@ -595,6 +599,8 @@
             <tr>
               <th>Смета</th>
               <th>Дата</th>
+              <th>Смен</th>
+              <th>До скидки</th>
               <th>Итог</th>
             </tr>
           </thead>

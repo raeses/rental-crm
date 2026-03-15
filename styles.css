@@ -441,7 +441,7 @@
     }
     .project-summary-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 12px;
       margin-top: 4px;
     }
@@ -473,6 +473,9 @@
       gap: 6px;
       min-width: 110px;
     }
+    .estimate-inline-stack-qty {
+      align-items: flex-start;
+    }
     .estimate-inline-input {
       width: 100%;
       background: var(--panel-2);
@@ -484,6 +487,20 @@
     }
     .estimate-inline-qty {
       max-width: 92px;
+    }
+    .estimate-cell-main {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+    }
+    .estimate-cell-name {
+      font-weight: 600;
+    }
+    .estimate-cell-number {
+      white-space: nowrap;
+    }
+    .estimate-cell-actions {
+      justify-content: flex-start;
     }
     .estimate-inline-hint {
       color: var(--muted);
