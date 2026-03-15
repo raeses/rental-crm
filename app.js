@@ -406,6 +406,10 @@ function getProjectEstimates(projectId) {
   return state.projectEstimatesByProject[Number(projectId)] || [];
 }
 
+function isEstimateArchived(estimate = {}) {
+  return Boolean(Number(estimate.is_archived)) || estimate.is_archived === true;
+}
+
 function getEstimateDisplayName(estimate = {}) {
   return [estimate.estimate_number, estimate.title].filter(Boolean).join(' — ') || `Смета #${estimate.id}`;
 }
@@ -427,7 +431,9 @@ function getEstimateShiftCount(estimate = {}) {
 }
 
 function getProjectEstimateTotals(estimates = []) {
-  return estimates.reduce(
+  return estimates
+    .filter(estimate => !isEstimateArchived(estimate))
+    .reduce(
     (acc, estimate) => {
       acc.count += 1;
       acc.subtotal += Number(estimate.subtotal || 0);
@@ -436,7 +442,7 @@ function getProjectEstimateTotals(estimates = []) {
       return acc;
     },
     { count: 0, subtotal: 0, total: 0, shiftCount: 0 }
-  );
+    );
 }
 
 function getInventoryGroupKey(name, category) {
@@ -1345,21 +1351,24 @@ async function renderProjectModal(rentalId) {
   const projectDiscount = getProjectDiscountPercent(rental);
 
   estimateSelect.innerHTML = '<option value="">Загрузка смет...</option>';
-  estimatesBody.innerHTML = '<tr><td colspan="5" class="empty">Загрузка смет...</td></tr>';
+  estimatesBody.innerHTML = '<tr><td colspan="6" class="empty">Загрузка смет...</td></tr>';
   estimateMeta.textContent = 'Загрузка смет...';
 
   const estimates = await loadProjectEstimates(rental.id);
-  if (!estimates.length) {
-    estimateSelect.innerHTML = '<option value="">Смет пока нет</option>';
-    estimatesBody.innerHTML = '<tr><td colspan="5" class="empty">Для этого проекта пока нет смет.</td></tr>';
-    estimateMeta.textContent = `Всего смет: 0 · Общая сумма: ${formatMoney(0)} · Смен по проекту: ${projectShiftCount}`;
+  const activeEstimates = estimates.filter(estimate => !isEstimateArchived(estimate));
+  const archivedEstimateCount = Math.max(0, estimates.length - activeEstimates.length);
+
+  if (!activeEstimates.length) {
+    estimateSelect.innerHTML = '<option value="">Активных смет нет</option>';
+    estimatesBody.innerHTML = `<tr><td colspan="6" class="empty">${archivedEstimateCount ? `Активных смет нет. В архиве: ${archivedEstimateCount}.` : 'Для этого проекта пока нет смет.'}</td></tr>`;
+    estimateMeta.textContent = `Всего активных смет: 0 · Общая сумма: ${formatMoney(0)} · Смен по проекту: ${projectShiftCount}${archivedEstimateCount ? ` · В архиве: ${archivedEstimateCount}` : ''}`;
     document.getElementById('projectModalStats').innerHTML = `
       <div class="card project-summary-card">
         <div class="card-label">Общая сумма проекта</div>
         <div class="card-value">${formatMoney(0)}</div>
       </div>
       <div class="card project-summary-card">
-        <div class="card-label">Всего смет</div>
+        <div class="card-label">Активных смет</div>
         <div class="card-value">0</div>
       </div>
       <div class="card project-summary-card">
@@ -1374,17 +1383,21 @@ async function renderProjectModal(rentalId) {
         <div class="card-label">Налог проекта</div>
         <div class="card-value project-summary-tax">${getProjectTaxLabel(rental)}</div>
       </div>
+      <div class="card project-summary-card">
+        <div class="card-label">Архив смет</div>
+        <div class="card-value">${archivedEstimateCount}</div>
+      </div>
     `;
     state.activeEstimateId = null;
     state.activeEstimate = null;
     return;
   }
 
-  const currentEstimateId = state.activeEstimateId && estimates.some(item => String(item.id) === String(state.activeEstimateId))
+  const currentEstimateId = state.activeEstimateId && activeEstimates.some(item => String(item.id) === String(state.activeEstimateId))
     ? String(state.activeEstimateId)
-    : String(estimates[0].id);
+    : String(activeEstimates[0].id);
 
-  estimateSelect.innerHTML = estimates
+  estimateSelect.innerHTML = activeEstimates
     .map(estimate => `<option value="${estimate.id}">${getEstimateDisplayName(estimate)}</option>`)
     .join('');
 
@@ -1393,7 +1406,7 @@ async function renderProjectModal(rentalId) {
     state.activeEstimateId = currentEstimateId;
   }
 
-  estimatesBody.innerHTML = estimates
+  estimatesBody.innerHTML = activeEstimates
     .map(
       estimate => `
       <tr class="project-row" onclick="openEstimateModal('${estimate.id}')">
@@ -1402,20 +1415,25 @@ async function renderProjectModal(rentalId) {
         <td>${getEstimateShiftCount(estimate)}</td>
         <td>${formatMoney(estimate.subtotal || 0)}</td>
         <td>${formatMoney(estimate.grand_total || 0)}</td>
+        <td>
+          <div class="actions-inline table-actions-inline">
+            <button class="secondary" onclick="archiveEstimateFromProjectList(event, ${estimate.id})">В архив</button>
+          </div>
+        </td>
       </tr>
     `
     )
     .join('');
 
-  const totals = getProjectEstimateTotals(estimates);
-  estimateMeta.textContent = `Всего смет: ${totals.count} · Общая сумма: ${formatMoney(totals.total)} · Смен по проекту: ${projectShiftCount}`;
+  const totals = getProjectEstimateTotals(activeEstimates);
+  estimateMeta.textContent = `Всего активных смет: ${totals.count} · Общая сумма: ${formatMoney(totals.total)} · Смен по проекту: ${projectShiftCount}${archivedEstimateCount ? ` · В архиве: ${archivedEstimateCount}` : ''}`;
   document.getElementById('projectModalStats').innerHTML = `
     <div class="card project-summary-card">
       <div class="card-label">Общая сумма проекта</div>
       <div class="card-value">${formatMoney(totals.total)}</div>
     </div>
     <div class="card project-summary-card">
-      <div class="card-label">Всего смет</div>
+      <div class="card-label">Активных смет</div>
       <div class="card-value">${totals.count}</div>
     </div>
     <div class="card project-summary-card">
@@ -1429,6 +1447,10 @@ async function renderProjectModal(rentalId) {
     <div class="card project-summary-card">
       <div class="card-label">Налог проекта</div>
       <div class="card-value project-summary-tax">${getProjectTaxLabel(rental)}</div>
+    </div>
+    <div class="card project-summary-card">
+      <div class="card-label">Архив смет</div>
+      <div class="card-value">${archivedEstimateCount}</div>
     </div>
   `;
 }
@@ -1700,6 +1722,45 @@ function openEstimatePdf() {
   }
 
   window.open(`${API}/estimates/${estimate.id}/pdf`, '_blank', 'noopener');
+}
+
+async function archiveEstimate(estimateId = null) {
+  const targetEstimateId = Number(estimateId || state.activeEstimateId || 0);
+  if (!targetEstimateId || !state.activeRentalId) return;
+
+  const estimates = getProjectEstimates(state.activeRentalId);
+  const estimate = estimates.find(item => Number(item.id) === targetEstimateId) || getActiveEstimate();
+  if (!estimate || isEstimateArchived(estimate)) return;
+
+  const confirmed = window.confirm(`Перенести смету «${getEstimateDisplayName(estimate)}» в архив? Она перестанет участвовать в актуальных суммах проекта.`);
+  if (!confirmed) return;
+
+  try {
+    await apiPost(`/estimates/${targetEstimateId}/archive`, {});
+
+    const projectId = Number(estimate.project_id || state.activeRentalId);
+    state.projectEstimatesByProject[projectId] = getProjectEstimates(projectId).map(item =>
+      Number(item.id) === targetEstimateId ? { ...item, is_archived: 1 } : item
+    );
+
+    state.activeEstimate = null;
+    state.activeEstimateId = null;
+    closeEstimateModal();
+    await loadAllData({ silent: true });
+    await renderProjectModal(state.activeRentalId);
+    alert('Смета перенесена в архив');
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function archiveEstimateFromProjectList(event, estimateId) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  await archiveEstimate(estimateId);
 }
 
 async function applyEstimateSettings() {

@@ -459,6 +459,9 @@
     .table-actions-inline {
       flex-wrap: wrap;
     }
+    .table-actions-inline button {
+      white-space: nowrap;
+    }
     .estimate-category-row td {
       background: rgba(124,156,255,.08);
       color: var(--text);
