@@ -467,6 +467,23 @@
       letter-spacing: .03em;
       text-transform: uppercase;
     }
+    .estimate-category-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .estimate-category-add {
+      min-height: 36px;
+      padding: 8px 12px;
+      font-size: 12px;
+      text-transform: none;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+    .estimate-empty-category-row td {
+      background: rgba(255,255,255,.01);
+    }
     .estimate-inline-stack {
       display: flex;
       flex-direction: column;
@@ -532,8 +549,28 @@
       font-size: 12px;
       margin-top: 4px;
     }
+    .catalog-item-checkbox {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+    }
+    .catalog-item-checkbox input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
     .estimate-catalog-filters {
       align-items: end;
+    }
+    .estimate-catalog-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 12px;
+      flex-wrap: wrap;
     }
     .estimate-controls {
       align-items: center;
@@ -567,6 +604,12 @@
       cursor: pointer;
       font-size: 12px;
     }
+    .actions-inline button:disabled,
+    button.primary:disabled,
+    button.secondary:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
     .totals-grid-item {
       min-height: 110px;
     }
@@ -580,6 +623,10 @@
       .two-col, .form-grid { grid-template-columns: 1fr; }
       .estimate-summary-shell { grid-template-columns: 1fr; }
       .project-summary-grid { grid-template-columns: 1fr; }
+      .estimate-category-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
       .title { font-size: 24px; }
     }
     @media (max-width: 640px) {
