@@ -41,6 +41,17 @@ const PROJECT_TAX_PRESETS = {
   custom: { label: 'Свой налог', percent: null }
 };
 
+const ESTIMATE_CATEGORY_ORDER = [
+  'Camera',
+  'Camera Accessories',
+  'Camera Support',
+  'Lenses and Filters',
+  'Monitors and Playback',
+  'Personnel',
+  'Logistics',
+  'Other'
+];
+
 let loadAllDataPromise = null;
 const itemFilters = {
   category: 'all',
@@ -490,6 +501,27 @@ function getEstimateCatalogItems(search = '', category = 'all') {
     if (normalizedCategory !== 'all' && String(group.category || '') !== normalizedCategory) return false;
     if (!normalizedSearch) return true;
     return String(group.name || '').toLowerCase().includes(normalizedSearch);
+  });
+}
+
+function getEstimateCategories(items = []) {
+  const categories = new Set(ESTIMATE_CATEGORY_ORDER);
+
+  state.items.forEach(item => {
+    if (item?.category) categories.add(item.category);
+  });
+
+  items.forEach(item => {
+    if (item?.category) categories.add(item.category);
+  });
+
+  return [...categories].sort((left, right) => {
+    const leftIndex = ESTIMATE_CATEGORY_ORDER.indexOf(left);
+    const rightIndex = ESTIMATE_CATEGORY_ORDER.indexOf(right);
+    if (leftIndex === -1 && rightIndex === -1) return String(left).localeCompare(String(right), 'ru');
+    if (leftIndex === -1) return 1;
+    if (rightIndex === -1) return -1;
+    return leftIndex - rightIndex;
   });
 }
 
@@ -1536,62 +1568,82 @@ function buildEstimateTableRows(items, estimate) {
     return Number(left.position_order || 0) - Number(right.position_order || 0);
   });
 
-  let currentCategory = null;
+  const categories = getEstimateCategories(sortedItems);
 
-  return sortedItems
-    .map(item => {
-      const calc = calculateEstimateItem(item, estimate);
-      const availableCount = getAvailableCountForEstimateItem(item);
-      const categoryRow = item.category !== currentCategory
-        ? `<tr class="estimate-category-row"><td colspan="7">${escapeHtml(item.category || 'Без категории')}</td></tr>`
-        : '';
-      currentCategory = item.category;
-
-      return `
-        ${categoryRow}
-        <tr>
-          <td><div class="estimate-cell-main estimate-cell-name">${escapeHtml(item.item_name || '-')}</div></td>
-          <td>
-            <div class="estimate-inline-stack">
-              <div class="money-inline">
-                <input
-                  id="estimate-item-price-${item.id}"
-                  class="estimate-inline-input"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value="${calc.priceBeforeDiscount.toFixed(2)}"
-                  onchange="updateEstimateItemInline(${item.id})"
-                />
-                <span class="money-inline-suffix">₽</span>
-              </div>
-            </div>
-          </td>
-          <td><div class="estimate-cell-main estimate-cell-number">${formatMoney(calc.priceAfterDiscount)}</div></td>
-          <td>
-            <div class="estimate-inline-stack estimate-inline-stack-qty">
-              <input
-                id="estimate-item-quantity-${item.id}"
-                class="estimate-inline-input estimate-inline-qty"
-                type="number"
-                step="1"
-                min="1"
-                max="${availableCount}"
-                value="${calc.quantity}"
-                onchange="updateEstimateItemInline(${item.id})"
-              />
-              <span class="estimate-inline-hint">В базе: ${availableCount}</span>
-            </div>
-          </td>
-          <td><div class="estimate-cell-main estimate-cell-number">${calc.shifts}</div></td>
-          <td><div class="estimate-cell-main estimate-cell-number">${formatMoney(calc.total)}</div></td>
-          <td>
-            <div class="actions-inline table-actions-inline estimate-cell-main estimate-cell-actions">
-              <button class="secondary" onclick="deleteEstimateItemRow(${item.id})">Удалить</button>
+  return categories
+    .map(category => {
+      const categoryItems = sortedItems.filter(item => String(item.category || 'Other') === String(category));
+      const categoryHeader = `
+        <tr class="estimate-category-row">
+          <td colspan="7">
+            <div class="estimate-category-header">
+              <span>${escapeHtml(category || 'Без категории')}</span>
+              <button class="secondary estimate-category-add" onclick='openEstimateCatalogModal(${JSON.stringify(String(category || "Other"))})'>Добавить технику</button>
             </div>
           </td>
         </tr>
       `;
+
+      if (!categoryItems.length) {
+        return `
+          ${categoryHeader}
+          <tr class="estimate-empty-category-row">
+            <td colspan="7" class="empty">В этой категории пока нет техники.</td>
+          </tr>
+        `;
+      }
+
+      const categoryRows = categoryItems.map(item => {
+        const calc = calculateEstimateItem(item, estimate);
+        const availableCount = getAvailableCountForEstimateItem(item);
+
+        return `
+          <tr>
+            <td><div class="estimate-cell-main estimate-cell-name">${escapeHtml(item.item_name || '-')}</div></td>
+            <td>
+              <div class="estimate-inline-stack">
+                <div class="money-inline">
+                  <input
+                    id="estimate-item-price-${item.id}"
+                    class="estimate-inline-input"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value="${calc.priceBeforeDiscount.toFixed(2)}"
+                    onchange="updateEstimateItemInline(${item.id})"
+                  />
+                  <span class="money-inline-suffix">₽</span>
+                </div>
+              </div>
+            </td>
+            <td><div class="estimate-cell-main estimate-cell-number">${formatMoney(calc.priceAfterDiscount)}</div></td>
+            <td>
+              <div class="estimate-inline-stack estimate-inline-stack-qty">
+                <input
+                  id="estimate-item-quantity-${item.id}"
+                  class="estimate-inline-input estimate-inline-qty"
+                  type="number"
+                  step="1"
+                  min="1"
+                  max="${availableCount}"
+                  value="${calc.quantity}"
+                  onchange="updateEstimateItemInline(${item.id})"
+                />
+                <span class="estimate-inline-hint">В базе: ${availableCount}</span>
+              </div>
+            </td>
+            <td><div class="estimate-cell-main estimate-cell-number">${calc.shifts}</div></td>
+            <td><div class="estimate-cell-main estimate-cell-number">${formatMoney(calc.total)}</div></td>
+            <td>
+              <div class="actions-inline table-actions-inline estimate-cell-main estimate-cell-actions">
+                <button class="secondary" onclick="deleteEstimateItemRow(${item.id})">Удалить</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      return `${categoryHeader}${categoryRows}`;
     })
     .join('');
 }
@@ -1611,11 +1663,7 @@ function renderEstimateModal() {
     totalsTaxLabel(getProjectTaxLabel(rental), estimate);
 
   const body = document.getElementById('estimateItemsBody');
-  if (!items.length) {
-    body.innerHTML = '<tr><td colspan="7" class="empty">В этой смете пока нет техники. Нажми «Добавить технику», чтобы собрать первую позицию.</td></tr>';
-  } else {
-    body.innerHTML = buildEstimateTableRows(items, estimate);
-  }
+  body.innerHTML = buildEstimateTableRows(items, estimate);
 
   const totals = calculateEstimateTotals(estimate, items);
   const taxLabel = totals.taxPercent > 0 ? `Включая налог (${getProjectTaxLabel(rental)})` : null;
@@ -1802,7 +1850,7 @@ function renderEstimateCatalogModal() {
   const body = document.getElementById('estimateCatalogBody');
   if (!searchInput || !categorySelect || !body) return;
 
-  const categories = [...new Set(state.items.map(item => item.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru'));
+  const categories = getEstimateCategories();
   const currentCategory = categorySelect.value || 'all';
   categorySelect.innerHTML = ['<option value="all">Все категории</option>', ...categories.map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)].join('');
   categorySelect.value = categories.includes(currentCategory) || currentCategory === 'all' ? currentCategory : 'all';
@@ -1828,7 +1876,7 @@ function renderEstimateCatalogModal() {
     .join('');
 }
 
-function openEstimateCatalogModal() {
+function openEstimateCatalogModal(category = 'all') {
   const estimate = getActiveEstimate();
   if (!estimate) {
     alert('Сначала открой смету.');
@@ -1838,7 +1886,7 @@ function openEstimateCatalogModal() {
   const searchInput = document.getElementById('estimateCatalogSearch');
   const categorySelect = document.getElementById('estimateCatalogCategory');
   if (searchInput) searchInput.value = '';
-  if (categorySelect) categorySelect.value = 'all';
+  if (categorySelect) categorySelect.value = category || 'all';
   renderEstimateCatalogModal();
   document.getElementById('estimateCatalogOverlay').classList.add('open');
 }
