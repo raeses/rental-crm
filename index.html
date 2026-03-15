@@ -552,10 +552,20 @@
         </label>
       </div>
 
+      <div class="estimate-catalog-actions">
+        <div class="muted" id="estimateCatalogSelectionSummary">Можно отметить несколько позиций и добавить их одним действием.</div>
+        <div class="actions-inline">
+          <button class="secondary" id="estimateCatalogSelectAll" onclick="selectAllEstimateCatalogItems()">Выбрать все на экране</button>
+          <button class="secondary" id="estimateCatalogClearSelection" onclick="clearEstimateCatalogSelection(); renderEstimateCatalogModal();" disabled>Очистить</button>
+          <button class="primary" id="estimateCatalogAddSelected" onclick="addSelectedCatalogItemsToEstimate()" disabled>Добавить выбранное</button>
+        </div>
+      </div>
+
       <div class="table-wrap" style="margin-top: 12px;">
         <table>
           <thead>
             <tr>
+              <th></th>
               <th>Техника</th>
               <th>Категория</th>
               <th>Ставка</th>
