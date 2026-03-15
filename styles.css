@@ -549,8 +549,28 @@
       font-size: 12px;
       margin-top: 4px;
     }
+    .catalog-item-checkbox {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+    }
+    .catalog-item-checkbox input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
     .estimate-catalog-filters {
       align-items: end;
+    }
+    .estimate-catalog-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 12px;
+      flex-wrap: wrap;
     }
     .estimate-controls {
       align-items: center;
@@ -583,6 +603,12 @@
       padding: 6px 10px;
       cursor: pointer;
       font-size: 12px;
+    }
+    .actions-inline button:disabled,
+    button.primary:disabled,
+    button.secondary:disabled {
+      opacity: .45;
+      cursor: not-allowed;
     }
     .totals-grid-item {
       min-height: 110px;
