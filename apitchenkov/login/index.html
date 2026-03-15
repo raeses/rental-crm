@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Вход</title>
+  <link rel="stylesheet" href="/auth.css" />
+</head>
+<body class="auth-page" data-business="apitchenkov">
+  <main class="auth-layout">
+    <section class="auth-card">
+      <div class="auth-side">
+        <p class="auth-kicker">Project login</p>
+        <h1>Вход в <span data-business-name></span></h1>
+        <p data-business-description></p>
+
+        <div class="auth-metrics">
+          <div class="auth-metric">
+            <strong>Отдельная авторизация</strong>
+            <span>Вход работает только внутри контура <span data-business-subtitle></span>.</span>
+          </div>
+          <div class="auth-metric">
+            <strong>Изоляция пользователей</strong>
+            <span>Даже одинаковый логин в другой системе не дает доступа сюда автоматически.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="auth-form-wrap">
+        <div class="auth-topline">
+          <span class="auth-chip"><span data-business-subtitle></span></span>
+          <a href="/">Назад к выбору</a>
+        </div>
+
+        <form id="loginForm" class="auth-form">
+          <label>
+            Логин
+            <input name="username" autocomplete="username" placeholder="admin" required />
+          </label>
+          <label>
+            Пароль
+            <input name="password" type="password" autocomplete="current-password" placeholder="Введите пароль" required />
+          </label>
+
+          <p id="loginError" class="login-error"></p>
+          <button id="loginSubmit" type="submit">Войти в систему</button>
+          <p class="auth-help">После успешного входа вы попадете только в выбранный проект.</p>
+        </form>
+
+        <div class="auth-footer">
+          <span class="auth-chip">Маршрут: /apitchenkov/login</span>
+          <span class="auth-chip">Dashboard: /apitchenkov/dashboard</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/portal-config.js"></script>
+  <script src="/login.js"></script>
+</body>
+</html>

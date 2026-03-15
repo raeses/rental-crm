@@ -1,4 +1,4 @@
-const API = '/api';
+const API = window.APP_CONFIG?.apiBase || '/api';
 
 const state = {
   items: [],
@@ -309,6 +309,13 @@ function buildApiError(path, res, payload, fallbackMessage) {
     return new Error(backendMessage);
   }
 
+  if (res.status === 401) {
+    if (window.APP_CONFIG?.loginPath) {
+      window.location.replace(window.APP_CONFIG.loginPath);
+    }
+    return new Error('Требуется авторизация');
+  }
+
   if (res.status === 404) {
     return new Error(`Раздел "${getFeatureLabel(path)}" пока не подключен к текущему backend.`);
   }
@@ -321,7 +328,7 @@ function buildApiError(path, res, payload, fallbackMessage) {
 }
 
 async function apiGet(path) {
-  const res = await fetch(API + path);
+  const res = await fetch(API + path, { credentials: 'same-origin' });
   const payload = await readApiPayload(res);
   if (!res.ok) throw buildApiError(path, res, payload, `Ошибка загрузки: ${path}`);
   return payload;
@@ -330,6 +337,7 @@ async function apiGet(path) {
 async function apiPost(path, body) {
   const res = await fetch(API + path, {
     method: 'POST',
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
@@ -345,6 +353,7 @@ async function apiPost(path, body) {
 async function apiPut(path, body) {
   const res = await fetch(API + path, {
     method: 'PUT',
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
@@ -565,27 +574,6 @@ function selectAllEstimateCatalogItems() {
   items.forEach(item => selection.add(Number(item.representativeId)));
   setEstimateCatalogSelection([...selection]);
   renderEstimateCatalogModal();
-}
-
-function getEstimateCategories(items = []) {
-  const categories = new Set(ESTIMATE_CATEGORY_ORDER);
-
-  state.items.forEach(item => {
-    if (item?.category) categories.add(item.category);
-  });
-
-  items.forEach(item => {
-    if (item?.category) categories.add(item.category);
-  });
-
-  return [...categories].sort((left, right) => {
-    const leftIndex = ESTIMATE_CATEGORY_ORDER.indexOf(left);
-    const rightIndex = ESTIMATE_CATEGORY_ORDER.indexOf(right);
-    if (leftIndex === -1 && rightIndex === -1) return String(left).localeCompare(String(right), 'ru');
-    if (leftIndex === -1) return 1;
-    if (rightIndex === -1) return -1;
-    return leftIndex - rightIndex;
-  });
 }
 
 async function loadProjectEstimates(projectId) {
@@ -1133,7 +1121,10 @@ async function deleteSubrental(id) {
   try {
     if (!confirm('Удалить субаренду?')) return;
 
-    const res = await fetch(`${API}/subrentals/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${API}/subrentals/${id}`, {
+      method: 'DELETE',
+      credentials: 'same-origin'
+    });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error || 'Ошибка удаления');
@@ -1177,6 +1168,7 @@ async function editSubrental(id) {
 
     const res = await fetch(`${API}/subrentals/${id}`, {
       method: 'PUT',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
@@ -1894,7 +1886,10 @@ async function deleteEstimateItemRow(itemId) {
   if (!confirmed) return;
 
   try {
-    const res = await fetch(`${API}/estimate-items/${item.id}`, { method: 'DELETE' });
+    const res = await fetch(`${API}/estimate-items/${item.id}`, {
+      method: 'DELETE',
+      credentials: 'same-origin'
+    });
     if (!res.ok) {
       const payload = await readApiPayload(res);
       throw buildApiError(`/estimate-items/${item.id}`, res, payload, 'Ошибка удаления позиции');
@@ -1975,7 +1970,7 @@ function closeEstimateCatalogModal() {
   if (overlay) overlay.classList.remove('open');
 }
 
-function getEstimateCatalogOperation(estimate, sourceItem) {
+async function upsertCatalogItemToEstimate(estimate, sourceItem) {
   if (!sourceItem) {
     throw new Error('Не удалось найти технику в каталоге.');
   }
@@ -1993,35 +1988,63 @@ function getEstimateCatalogOperation(estimate, sourceItem) {
       throw new Error(`Нельзя добавить больше ${availableCount} шт. — столько активных единиц есть в каталоге.`);
     }
 
-    return {
-      type: 'update',
-      path: `/estimate-items/${existingRow.id}`,
-      payload: {
-        category: existingRow.category || sourceItem.category || 'Camera',
-        item_name: existingRow.item_name || sourceItem.name || 'Техника',
-        quantity: nextQuantity,
-        price_per_unit: Number(existingRow.price_per_unit || sourceItem.base_rate || sourceItem.price || 0),
-        days: getEstimateShiftCount(estimate),
-        position_order: Number(existingRow.position_order || 0),
-        source_type: existingRow.source_type || 'catalog',
-        catalog_item_id: existingRow.catalog_item_id || Number(sourceItem.id),
-        notes: existingRow.notes || null
-      }
-    };
+    await apiPut(`/estimate-items/${existingRow.id}`, {
+      category: existingRow.category || sourceItem.category || 'Camera',
+      item_name: existingRow.item_name || sourceItem.name || 'Техника',
+      quantity: nextQuantity,
+      price_per_unit: Number(existingRow.price_per_unit || sourceItem.base_rate || sourceItem.price || 0),
+      days: getEstimateShiftCount(estimate),
+      position_order: Number(existingRow.position_order || 0),
+      source_type: existingRow.source_type || 'catalog',
+      catalog_item_id: existingRow.catalog_item_id || Number(sourceItem.id),
+      notes: existingRow.notes || null
+    });
+    return;
   }
 
-  return {
-    type: 'create',
-    path: `/estimates/${estimate.id}/items`,
-    payload: {
-      category: sourceItem.category || 'Camera',
-      item_name: sourceItem.name || 'Техника',
-      quantity: 1,
-      price_per_unit: Number(sourceItem.base_rate ?? sourceItem.price ?? 0),
-      days: getEstimateShiftCount(estimate),
-      source_type: 'catalog',
-      catalog_item_id: Number(sourceItem.id),
-      notes: null
+  await apiPost(`/estimates/${estimate.id}/items`, {
+    category: sourceItem.category || 'Camera',
+    item_name: sourceItem.name || 'Техника',
+    quantity: 1,
+    price_per_unit: Number(sourceItem.base_rate ?? sourceItem.price ?? 0),
+    days: getEstimateShiftCount(estimate),
+    source_type: 'catalog',
+    catalog_item_id: Number(sourceItem.id),
+    notes: null
+  });
+}
+
+async function addCatalogItemToEstimate(itemId) {
+  const estimate = getActiveEstimate();
+  if (!estimate) return;
+
+  const sourceItem = state.items.find(item => Number(item.id) === Number(itemId));
+
+  try {
+    await upsertCatalogItemToEstimate(estimate, sourceItem);
+    closeEstimateCatalogModal();
+    await loadEstimateDetails(estimate.id);
+    await renderProjectModal(state.activeRentalId);
+    renderEstimateModal();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function addSelectedCatalogItemsToEstimate() {
+  const estimate = getActiveEstimate();
+  if (!estimate) return;
+
+  const selectedIds = state.estimateCatalogSelection || [];
+  if (!selectedIds.length) {
+    alert('Сначала отметь хотя бы одну позицию.');
+    return;
+  }
+
+  try {
+    for (const itemId of selectedIds) {
+      const sourceItem = state.items.find(item => Number(item.id) === Number(itemId));
+      await upsertCatalogItemToEstimate(estimate, sourceItem);
     }
   };
 }
@@ -2034,22 +2057,11 @@ async function applyEstimateCatalogOperation(operation) {
     return;
   }
 
-  await apiPost(operation.path, operation.payload);
-}
-
-async function addCatalogItemToEstimate(itemId) {
-  const estimate = getActiveEstimate();
-  if (!estimate) return;
-
-  const sourceItem = state.items.find(item => Number(item.id) === Number(itemId));
-
-  try {
-    const operation = getEstimateCatalogOperation(estimate, sourceItem);
-    await applyEstimateCatalogOperation(operation);
-    closeEstimateCatalogModal();
     await loadEstimateDetails(estimate.id);
+    closeEstimateCatalogModal();
     await renderProjectModal(state.activeRentalId);
     renderEstimateModal();
+    alert(`В смету добавлено позиций: ${selectedIds.length}`);
   } catch (error) {
     alert(error.message);
   }
@@ -2280,15 +2292,29 @@ function setupNavigation() {
 
 
 
+let crmAppInitialized = false;
+
+function initializeCrmApp() {
+  if (crmAppInitialized) return;
+  crmAppInitialized = true;
+
+  setupNavigation();
+  setupProjectDateGuard();
+  resetItemForm();
+  loadAllData({ silent: true });
+}
+
 window.crmApp = {
   getState: () => state,
   formatMoney,
   formatPercent,
   normalizePaybackItem,
   openProjectModal,
-  openEstimateModal
+  openEstimateModal,
+  initialize: initializeCrmApp
 };
 
+window.initializeCrmApp = initializeCrmApp;
 window.openItemModal = openItemModal;
 window.closeItemModal = closeItemModal;
 window.saveItemFromModal = saveItemFromModal;
@@ -2304,7 +2330,6 @@ window.addCatalogItemToEstimate = addCatalogItemToEstimate;
 window.addSelectedCatalogItemsToEstimate = addSelectedCatalogItemsToEstimate;
 window.updateEstimateItemInline = updateEstimateItemInline;
 
-setupNavigation();
-setupProjectDateGuard();
-resetItemForm();
-loadAllData({ silent: true });
+if (window.APP_CONFIG?.autoInit !== false) {
+  initializeCrmApp();
+}
