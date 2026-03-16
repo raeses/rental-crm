@@ -18,6 +18,7 @@ import { requireProjectAuth } from './middleware/requireProjectAuth.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const webRoot = path.resolve(__dirname, '..');
+const cinetoolsWebRoot = path.resolve(process.env.CINETOOLS_WEB_ROOT || path.join(webRoot, 'cinetools'));
 
 function isHttpsRequest(req) {
   if (req.secure) return true;
@@ -189,11 +190,11 @@ async function bootstrap() {
 
   app.get(
     ['/cinetools/login', '/cinetools/login/', '/cinetools/login/index.html'],
-    renderLoginPage('cinetools', path.join(webRoot, 'cinetools/login/index.html'))
+    renderLoginPage('cinetools', path.join(cinetoolsWebRoot, 'login/index.html'))
   );
   app.get(
     ['/cinetools/dashboard', '/cinetools/dashboard/', '/cinetools/dashboard/index.html'],
-    renderDashboardPage('cinetools', path.join(webRoot, 'cinetools/dashboard/index.html'))
+    renderDashboardPage('cinetools', path.join(cinetoolsWebRoot, 'dashboard/index.html'))
   );
 
   app.get('/admin', (_req, res) => res.redirect('/admin/login/'));

@@ -12,6 +12,9 @@ Portal entry points:
 - `/cinetools/login/` -> `/cinetools/dashboard/`
 - `/admin/login/` -> `/admin/dashboard/`
 
+You can keep CineTools files outside `/var/www/rental` by setting:
+- `CINETOOLS_WEB_ROOT=/var/www/cinetools`
+
 ## Run (local)
 ```bash
 cd server
