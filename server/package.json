@@ -10,11 +10,15 @@
     "auth:hash": "node scripts/generatePasswordHash.js"
   },
   "dependencies": {
+    "connect-redis": "^8.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^7.4.1",
     "express-session": "^1.18.1",
+    "helmet": "^8.0.0",
     "mysql2": "^3.11.3",
-    "pdfkit": "^0.15.0"
+    "pdfkit": "^0.15.0",
+    "redis": "^4.7.0"
   }
 }

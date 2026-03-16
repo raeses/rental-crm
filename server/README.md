@@ -1,194 +1,121 @@
-# Estimate Module Backend (APITCHENKOV)
+# Rental CRM Backend (Multi-project Portal)
 
-## Run
+## Scope
+Backend serves three isolated auth contexts on one server:
+- `apitchenkov` (rental CRM)
+- `cinetools` (sales CRM)
+- `admin` (user management for both)
+
+Portal entry points:
+- `/`
+- `/apitchenkov/login/` -> `/apitchenkov/dashboard/`
+- `/cinetools/login/` -> `/cinetools/dashboard/`
+- `/admin/login/` -> `/admin/dashboard/`
+
+## Run (local)
 ```bash
 cd server
 npm install
 cp .env.example .env
-# create DB and run SQL scripts
-mysql -u root -p rental_crm < sql/schema.sql
-mysql -u root -p rental_crm < sql/seed.sql
 npm start
 ```
 
-## Multi-project portal auth
-Implemented business portal with independent auth contexts:
-
-- `/` - project selection portal
-- `/cinetools/login/` -> `/cinetools/dashboard/`
-- `/apitchenkov/login/` -> `/apitchenkov/dashboard/`
-- `/admin/login/` -> `/admin/dashboard/`
-
-Sessions are isolated per project (`authByProject` in one cookie):
-- login to `apitchenkov` does not grant `cinetools` access
-- login to `cinetools` does not grant `apitchenkov` access
-
-Default seeded users (change immediately in production):
-- `apitchenkov`: `admin / Apitchenkov!2026`
-- `cinetools`: `admin / CineTools!2026`
-- `admin`: `portal-admin / AdminPortal!2026`
-
-To generate password hash:
-
-```bash
-npm run auth:hash -- "NewStrongPassword"
-```
-
-Then put hash into `.env`:
-
-```env
-APITCHENKOV_ADMIN_PASSWORD_HASH=scrypt$...
-CINETOOLS_ADMIN_PASSWORD_HASH=scrypt$...
-PORTAL_ADMIN_PASSWORD_HASH=scrypt$...
-```
-
-## Existing DB Migration
-If the server already has an older `rental` database with a legacy `items` table, apply the items migration instead of rerunning the full schema:
+## Required migrations
+Run on existing DB:
 
 ```bash
 mysql rental < sql/migrations/20260314_items_mvp.sql
-```
-
-Then restart the backend process.
-
-## UTF-8 and Cyrillic for PDF
-PDF generation uses embedded DejaVu Sans fonts with Cyrillic support.
-By default it looks for system paths:
-- `/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf`
-- `/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf`
-
-You can override paths:
-
-```bash
-PDF_FONT_REGULAR=/path/to/DejaVuSans.ttf
-PDF_FONT_BOLD=/path/to/DejaVuSans-Bold.ttf
-```
-
-For legacy DBs, run UTF-8 migration once:
-
-```bash
+mysql rental < sql/migrations/20260316_auth_users_portal.sql
+mysql rental < sql/migrations/20260316_auth_login_attempts.sql
 mysql rental < sql/migrations/20260316_utf8mb4_for_pdf_text.sql
 ```
 
-## API examples
+## Environment and hardening
+Configuration is validated at startup (`utils/validateEnv.js`).
 
-### Portal auth endpoints
-- `GET /api/auth/projects` - list projects for portal cards
-- `POST /api/auth/:project/login`
+Production requirements:
+- strong `SESSION_SECRET` (>= 32 chars)
+- `REDIS_URL` configured (no MemoryStore in production)
+- explicit `CORS_ALLOWED_ORIGINS`
+- all required admin credential env vars configured
+- HTTPS expected behind reverse proxy (`TRUST_PROXY=1`, `REQUIRE_HTTPS_IN_PROD=true`)
+
+Use:
+- `npm run auth:hash -- "StrongPassword"` to generate `scrypt` hash
+
+### Auth credential env vars
+- `APITCHENKOV_ADMIN_USERNAME`
+- `APITCHENKOV_ADMIN_PASSWORD_HASH`
+- `CINETOOLS_ADMIN_USERNAME`
+- `CINETOOLS_ADMIN_PASSWORD_HASH`
+- `PORTAL_ADMIN_USERNAME`
+- `PORTAL_ADMIN_PASSWORD_HASH`
+
+Development-only fallback accounts are allowed only when:
+- `NODE_ENV=development`
+- `ENABLE_DEV_AUTH_FALLBACK=true` (explicit opt-in)
+
+## Security controls implemented
+- `helmet` security headers
+- strict session cookie policy (`httpOnly`, `secure` in production, `sameSite=strict` in production)
+- session fixation mitigation (`req.session.regenerate` on successful login)
+- Redis session store in production via `connect-redis`
+- login and session rate limiting (`express-rate-limit`)
+- CORS allowlist by env
+- server-side guards for dashboard routes (redirect to login if unauthenticated)
+- audit table for login attempts (`auth_login_attempts`)
+
+## Auth endpoints
+- `GET /api/auth/projects`
 - `GET /api/auth/:project/session`
+- `POST /api/auth/:project/login`
 - `POST /api/auth/:project/logout`
 
-Protected API zones:
-- `/api/projects`, `/api/items`, `/api/estimates*` require `apitchenkov` login
-- `/api/cinetools/*` require `cinetools` login
-- `/api/admin/*` require `admin` login
+Login errors are neutral (`Invalid credentials`) to avoid account enumeration.
 
-### Admin users API
+## Protected API zones
+- `/api/projects`, `/api/items`, `/api/estimates*` -> requires `apitchenkov` session
+- `/api/cinetools/*` -> requires `cinetools` session
+- `/api/admin/*` -> requires `admin` session
+
+## Admin users API
 - `GET /api/admin/users?project=apitchenkov|cinetools`
 - `POST /api/admin/users`
 - `PUT /api/admin/users/:id`
 
-Database migration for managed users table:
+## Audit logging
+Every login attempt (success/failure) is written to `auth_login_attempts` with:
+- `project_slug`
+- `username`
+- `ip_address`
+- `user_agent`
+- `success`
+- `failure_reason`
+- `attempted_at`
 
-```bash
-mysql rental < sql/migrations/20260316_auth_users_portal.sql
-```
+## HTTPS and nginx guidance (production)
+Recommended nginx setup:
+- terminate TLS at nginx
+- forward `X-Forwarded-Proto https`
+- proxy to backend over localhost
+- keep backend private (not publicly exposed)
 
-### Create project
-`POST /api/projects`
-```json
-{
-  "internal_number": "014",
-  "name": "Kuznetsov",
-  "client": "Kuznetsov Prod",
-  "operator": "Alex Petrov",
-  "start_date": "2026-03-14",
-  "end_date": "2026-03-16",
-  "status": "confirmed"
-}
-```
+Example essentials:
+- `proxy_set_header X-Forwarded-Proto $scheme;`
+- `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`
+- `proxy_set_header Host $host;`
 
-### Create estimate
-`POST /api/estimates`
-```json
-{
-  "project_id": 1,
-  "estimate_number": "014/1",
-  "title": "Main Equipment",
-  "start_date": "2026-03-14",
-  "end_date": "2026-03-16",
-  "discount_percent": 10,
-  "tax_enabled": true,
-  "tax_percent": 9
-}
-```
+Recommended nginx-level extras:
+- request rate limiting for `/api/auth/*`
+- HSTS header (if managed at nginx layer)
+- deny unwanted methods on static paths
 
-### Add estimate item
-`POST /api/estimates/:estimateId/items`
-```json
-{
-  "category": "Camera",
-  "item_name": "Red Komodo 6K",
-  "quantity": 1,
-  "price_per_unit": 3000,
-  "days": 3,
-  "position_order": 1,
-  "source_type": "catalog",
-  "catalog_item_id": 12,
-  "notes": null
-}
-```
-
-### Reorder rows
-`POST /api/estimates/:id/reorder-items`
-```json
-{
-  "ordered_ids": [11, 12, 15, 13]
-}
-```
-
-### Get estimate response (example)
-`GET /api/estimates/1`
-```json
-{
-  "id": 1,
-  "project_id": 1,
-  "estimate_number": "014/1",
-  "discount_percent": 10,
-  "tax_enabled": 1,
-  "tax_percent": 9,
-  "subtotal": 35350,
-  "discount_amount": 3535,
-  "total_after_discount": 31815,
-  "tax_amount": 2863.35,
-  "grand_total": 34678.35,
-  "items": [
-    {
-      "id": 1,
-      "estimate_id": 1,
-      "category": "Camera",
-      "item_name": "Red Komodo 6K",
-      "quantity": 1,
-      "price_per_unit": 3000,
-      "kit_total": 3000,
-      "days": 3,
-      "line_total": 9000,
-      "position_order": 1
-    }
-  ]
-}
-```
-
-### PDF
+## PDF
 `GET /api/estimates/:id/pdf`
 
-Returns client-facing PDF stream.
+Use `GET /api/estimates/:id/pdf?download=1` to force attachment download.
 
-Use `GET /api/estimates/:id/pdf?download=1` to force file download
-(`Content-Disposition: attachment`).
-
-Smoke check with Russian test data:
-
+Cyrillic smoke test:
 ```bash
 npm run pdf:smoke:ru
 ```

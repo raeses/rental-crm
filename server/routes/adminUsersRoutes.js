@@ -8,6 +8,14 @@ import {
 
 const router = Router();
 
+router.use((req, res, next) => {
+  if (String(req.projectAuth?.role || '').toLowerCase() !== 'superadmin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  return next();
+});
+
 function assertProjectSlug(value) {
   const projectSlug = String(value || '').trim().toLowerCase();
   if (!MANAGED_BUSINESS_PROJECTS.includes(projectSlug)) {

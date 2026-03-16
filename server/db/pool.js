@@ -1,17 +1,15 @@
 import mysql from 'mysql2/promise';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import { appEnv } from '../config/env.js';
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || '127.0.0.1',
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'rental_crm',
+  host: appEnv.db.host,
+  port: appEnv.db.port,
+  user: appEnv.db.user,
+  password: appEnv.db.password,
+  database: appEnv.db.name,
   charset: 'utf8mb4',
   waitForConnections: true,
-  connectionLimit: Number(process.env.DB_POOL_SIZE || 10),
+  connectionLimit: appEnv.db.poolSize,
   namedPlaceholders: true
 });
 
