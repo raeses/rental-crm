@@ -353,6 +353,12 @@ async function bootstrap() {
       if (!row) return;
 
       try {
+        if (target instanceof HTMLInputElement && target.dataset.field === 'username') {
+          setMessage('');
+          await loadUserHistory(row.dataset.userId);
+          return;
+        }
+
         if (action === 'save') {
           setMessage('');
           await saveUserRow(row);
