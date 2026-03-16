@@ -1,4 +1,44 @@
 import PDFDocument from 'pdfkit';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const REGULAR_FONT_CANDIDATES = [
+  process.env.PDF_FONT_REGULAR,
+  path.resolve(__dirname, '../assets/fonts/DejaVuSans.ttf'),
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+  '/usr/share/fonts/dejavu/DejaVuSans.ttf'
+].filter(Boolean);
+
+const BOLD_FONT_CANDIDATES = [
+  process.env.PDF_FONT_BOLD,
+  path.resolve(__dirname, '../assets/fonts/DejaVuSans-Bold.ttf'),
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+  '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'
+].filter(Boolean);
+
+function resolveFontPath(candidates, fontLabel) {
+  const foundPath = candidates.find((candidatePath) => fs.existsSync(candidatePath));
+  if (foundPath) return foundPath;
+
+  const error = new Error(
+    `PDF font file not found for ${fontLabel}. ` +
+    `Checked: ${candidates.join(', ')}. ` +
+    'Set PDF_FONT_REGULAR/PDF_FONT_BOLD env vars or install DejaVu Sans fonts.'
+  );
+  error.status = 500;
+  throw error;
+}
+
+function registerPdfFonts(doc) {
+  const regularFontPath = resolveFontPath(REGULAR_FONT_CANDIDATES, 'regular');
+  const boldFontPath = resolveFontPath(BOLD_FONT_CANDIDATES, 'bold');
+  doc.registerFont('AppRegular', regularFontPath);
+  doc.registerFont('AppBold', boldFontPath);
+}
 
 function money(value) {
   return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
@@ -27,7 +67,7 @@ function sanitizeFilename(value) {
 }
 
 function drawTableHeader(doc, columns) {
-  doc.font('Helvetica-Bold').fontSize(9);
+  doc.font('AppBold').fontSize(9);
   const y = doc.y;
   columns.forEach((column) => {
     doc.text(column.label, column.x + 2, y, {
@@ -73,6 +113,8 @@ function drawTableRow(doc, columns, values) {
 
 export function renderEstimatePdf(res, { project, estimate, items, download = false }) {
   const doc = new PDFDocument({ size: 'A4', margin: 40 });
+  registerPdfFonts(doc);
+
   const estimateIdentity = estimate.estimate_number || estimate.id;
   const filename = sanitizeFilename(`estimate-${estimateIdentity}`) + '.pdf';
 
@@ -80,12 +122,12 @@ export function renderEstimatePdf(res, { project, estimate, items, download = fa
   res.setHeader('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${filename}"`);
   doc.pipe(res);
 
-  doc.font('Helvetica-BoldOblique').fontSize(20).text('APITCHENKOV');
-  doc.font('Helvetica').fontSize(11).text('+7 902 157 95 27');
+  doc.font('AppBold').fontSize(20).text('APITCHENKOV');
+  doc.font('AppRegular').fontSize(11).text('+7 902 157 95 27');
   doc.moveDown(0.5);
 
-  doc.font('Helvetica-Bold').fontSize(13).text(`Проект: ${project.name}`);
-  if (project.operator) doc.font('Helvetica').fontSize(11).text(`Оператор: ${project.operator}`);
+  doc.font('AppBold').fontSize(13).text(`Проект: ${project.name}`);
+  if (project.operator) doc.font('AppRegular').fontSize(11).text(`Оператор: ${project.operator}`);
   if (project.client) doc.text(`Клиент: ${project.client}`);
   doc.text(`Смета: ${estimate.estimate_number || estimate.id}`);
   if (estimate.title) doc.text(`Название: ${estimate.title}`);
@@ -102,18 +144,18 @@ export function renderEstimatePdf(res, { project, estimate, items, download = fa
   ];
 
   const drawContinuationHeader = () => {
-    doc.font('Helvetica-Bold').fontSize(10).text(`Смета ${estimate.estimate_number || estimate.id} — продолжение`, 40, doc.y);
+    doc.font('AppBold').fontSize(10).text(`Смета ${estimate.estimate_number || estimate.id} — продолжение`, 40, doc.y);
     doc.moveDown(0.5);
     drawTableHeader(doc, columns);
-    doc.font('Helvetica').fontSize(9);
+    doc.font('AppRegular').fontSize(9);
   };
 
   drawTableHeader(doc, columns);
-  doc.font('Helvetica').fontSize(9);
+  doc.font('AppRegular').fontSize(9);
 
   let currentCategory = null;
   if (!Array.isArray(items) || items.length === 0) {
-    doc.font('Helvetica').fontSize(10).fillColor('#555').text('В смете пока нет позиций.');
+    doc.font('AppRegular').fontSize(10).fillColor('#555').text('В смете пока нет позиций.');
     doc.moveDown(0.6);
     doc.fillColor('black');
   } else {
@@ -121,9 +163,9 @@ export function renderEstimatePdf(res, { project, estimate, items, download = fa
       if (item.category !== currentCategory) {
         currentCategory = item.category || 'Без категории';
         ensurePageSpace(doc, 26, drawContinuationHeader);
-        doc.font('Helvetica-Bold').fontSize(10).fillColor('#2b2b2b').text(currentCategory, 40, doc.y + 2);
+        doc.font('AppBold').fontSize(10).fillColor('#2b2b2b').text(currentCategory, 40, doc.y + 2);
         doc.moveDown(0.25);
-        doc.fillColor('black').font('Helvetica').fontSize(9);
+        doc.fillColor('black').font('AppRegular').fontSize(9);
       }
 
       const rowValues = {
@@ -154,7 +196,7 @@ export function renderEstimatePdf(res, { project, estimate, items, download = fa
   doc.moveDown(0.5);
 
   const drawTotalsContinuation = () => {
-    doc.font('Helvetica-Bold').fontSize(10).text(`Смета ${estimate.estimate_number || estimate.id} — итоги`, 40, doc.y);
+    doc.font('AppBold').fontSize(10).text(`Смета ${estimate.estimate_number || estimate.id} — итоги`, 40, doc.y);
     doc.moveDown(0.5);
   };
 
@@ -170,7 +212,7 @@ export function renderEstimatePdf(res, { project, estimate, items, download = fa
 
   totals.forEach(([label, value]) => {
     ensurePageSpace(doc, 28, drawTotalsContinuation);
-    doc.font('Helvetica').fontSize(11).text(label, 310, doc.y, { width: 200 });
+    doc.font('AppRegular').fontSize(11).text(label, 310, doc.y, { width: 200 });
     doc.text(value, 500, doc.y, { width: 80, align: 'right' });
     doc.moveDown(0.2);
   });
@@ -179,12 +221,12 @@ export function renderEstimatePdf(res, { project, estimate, items, download = fa
   doc.moveDown(0.1);
   doc.moveTo(310, doc.y).lineTo(555, doc.y).strokeColor('#333').stroke();
   doc.moveDown(0.4);
-  doc.font('Helvetica-Bold').fontSize(13).text('ИТОГО К ОПЛАТЕ', 310, doc.y, { width: 170 });
+  doc.font('AppBold').fontSize(13).text('ИТОГО К ОПЛАТЕ', 310, doc.y, { width: 170 });
   doc.text(`${money(estimate.grand_total)} ₽`, 470, doc.y, { width: 85, align: 'right' });
 
   ensurePageSpace(doc, 70, drawTotalsContinuation);
   doc.moveDown(1);
-  doc.font('Helvetica').fontSize(9).fillColor('#666').text(
+  doc.font('AppRegular').fontSize(9).fillColor('#666').text(
     'Стандартная смена: 10 часов (включая 1 час обеда). Овертайм: 11–18 ч = 3500 ₽/ч; 18–24 ч = x2; 24+ = x4. Погрузка/разгрузка: 14000 ₽.',
     40,
     doc.y,

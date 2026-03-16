@@ -20,6 +20,25 @@ mysql rental < sql/migrations/20260314_items_mvp.sql
 
 Then restart the backend process.
 
+## UTF-8 and Cyrillic for PDF
+PDF generation uses embedded DejaVu Sans fonts with Cyrillic support.
+By default it looks for system paths:
+- `/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf`
+- `/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf`
+
+You can override paths:
+
+```bash
+PDF_FONT_REGULAR=/path/to/DejaVuSans.ttf
+PDF_FONT_BOLD=/path/to/DejaVuSans-Bold.ttf
+```
+
+For legacy DBs, run UTF-8 migration once:
+
+```bash
+mysql rental < sql/migrations/20260316_utf8mb4_for_pdf_text.sql
+```
+
 ## API examples
 
 ### Create project
@@ -114,3 +133,9 @@ Returns client-facing PDF stream.
 
 Use `GET /api/estimates/:id/pdf?download=1` to force file download
 (`Content-Disposition: attachment`).
+
+Smoke check with Russian test data:
+
+```bash
+npm run pdf:smoke:ru
+```
