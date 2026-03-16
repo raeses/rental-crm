@@ -111,3 +111,6 @@ Then restart the backend process.
 `GET /api/estimates/:id/pdf`
 
 Returns client-facing PDF stream.
+
+Use `GET /api/estimates/:id/pdf?download=1` to force file download
+(`Content-Disposition: attachment`).

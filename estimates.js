@@ -382,12 +382,12 @@ const estimateBuilder = {
 
   previewPdf() {
     if (!ebState.currentEstimate) return;
-    window.open(`/api/estimates/${ebState.currentEstimate.id}/pdf`, '_blank');
+    window.open(`/api/estimates/${ebState.currentEstimate.id}/pdf`, '_blank', 'noopener');
   },
 
   generatePdf() {
     if (!ebState.currentEstimate) return;
-    window.open(`/api/estimates/${ebState.currentEstimate.id}/pdf`, '_blank');
+    window.open(`/api/estimates/${ebState.currentEstimate.id}/pdf?download=1`, '_blank', 'noopener');
   }
 };
 

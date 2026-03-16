@@ -144,7 +144,8 @@ export async function estimatePdfHandler(req, res, next) {
     const project = await getProjectById(estimate.project_id);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
-    return renderEstimatePdf(res, { project, estimate, items: estimate.items || [] });
+    const download = ['1', 'true', 'yes'].includes(String(req.query.download || '').toLowerCase());
+    return renderEstimatePdf(res, { project, estimate, items: estimate.items || [], download });
   } catch (error) {
     return next(error);
   }
