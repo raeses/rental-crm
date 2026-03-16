@@ -1,0 +1,141 @@
+:root {
+  --bg: #f2f5f7;
+  --text: #13171b;
+  --muted: #64707a;
+  --panel: #ffffff;
+  --border: #d7e0e8;
+  --accent: #1f4f87;
+  --danger: #c03737;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  background:
+    linear-gradient(150deg, #f9fbfc 0%, #eef2f7 60%, #e6edf4 100%);
+  color: var(--text);
+}
+
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: min(460px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 16px 36px rgba(35, 51, 66, 0.08);
+}
+
+.auth-title {
+  margin: 0;
+  font-size: 32px;
+  line-height: 1.05;
+}
+
+.auth-subtitle {
+  margin: 10px 0 18px;
+  color: var(--muted);
+}
+
+.auth-field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.auth-field span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.auth-field input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 12px;
+  font: inherit;
+}
+
+.auth-submit,
+.auth-link,
+.auth-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 0;
+  padding: 11px 14px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.auth-submit {
+  background: var(--accent);
+  color: #fff;
+  width: 100%;
+}
+
+.auth-link {
+  background: var(--accent);
+  color: #fff;
+}
+
+.auth-ghost {
+  background: #edf2f7;
+  color: #193047;
+}
+
+.auth-message {
+  min-height: 18px;
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.auth-row {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dashboard-wrap {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 56px 24px;
+}
+
+.dashboard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.dashboard-title {
+  margin: 0;
+  font-size: clamp(30px, 5vw, 44px);
+}
+
+.dashboard-subtitle {
+  color: var(--muted);
+}
+
+.dashboard-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  padding: 18px;
+}

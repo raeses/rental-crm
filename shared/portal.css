@@ -1,0 +1,147 @@
+:root {
+  --bg: #f4f6f8;
+  --text: #111315;
+  --muted: #6a7178;
+  --card: #ffffff;
+  --border: #dbe2e8;
+  --cinetools: #0f4c81;
+  --apitchenkov: #174f3b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 0% 0%, #ffffff 0%, transparent 40%),
+    radial-gradient(circle at 100% 100%, #dde7f1 0%, transparent 45%),
+    var(--bg);
+  color: var(--text);
+}
+
+.portal-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 56px 24px 40px;
+}
+
+.portal-header {
+  margin-bottom: 30px;
+}
+
+.portal-kicker {
+  margin: 0 0 6px;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.portal-header h1 {
+  margin: 0;
+  font-size: clamp(28px, 5vw, 42px);
+  line-height: 1.05;
+}
+
+.portal-subtitle {
+  margin: 14px 0 0;
+  max-width: 720px;
+  color: var(--muted);
+}
+
+.portal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.portal-card {
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 28px 24px;
+  overflow: hidden;
+  transform: translateY(8px);
+  opacity: 0;
+  animation: cardIn 450ms ease forwards;
+}
+
+.portal-card::after {
+  content: "";
+  position: absolute;
+  inset: auto -10% -60% auto;
+  width: 220px;
+  height: 220px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.portal-card h2 {
+  margin: 0;
+  font-size: 30px;
+}
+
+.portal-tag {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.portal-description {
+  margin: 16px 0 22px;
+  color: var(--muted);
+  max-width: 430px;
+}
+
+.portal-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.portal-enter {
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.portal-route {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.portal-loading {
+  color: var(--muted);
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 840px) {
+  .portal-grid {
+    grid-template-columns: 1fr;
+  }
+}

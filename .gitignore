@@ -1,0 +1,6 @@
+server/node_modules/
+server/.env
+server/.env.save
+server/.env.save.*
+server/rental-crm/
+/package-lock.json

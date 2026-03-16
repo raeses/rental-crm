@@ -11,6 +11,34 @@ mysql -u root -p rental_crm < sql/seed.sql
 npm start
 ```
 
+## Multi-project portal auth
+Implemented business portal with independent auth contexts:
+
+- `/` - project selection portal
+- `/cinetools/login/` -> `/cinetools/dashboard/`
+- `/apitchenkov/login/` -> `/apitchenkov/dashboard/`
+
+Sessions are isolated per project (`authByProject` in one cookie):
+- login to `apitchenkov` does not grant `cinetools` access
+- login to `cinetools` does not grant `apitchenkov` access
+
+Default seeded users (change immediately in production):
+- `apitchenkov`: `admin / Apitchenkov!2026`
+- `cinetools`: `admin / CineTools!2026`
+
+To generate password hash:
+
+```bash
+npm run auth:hash -- "NewStrongPassword"
+```
+
+Then put hash into `.env`:
+
+```env
+APITCHENKOV_ADMIN_PASSWORD_HASH=scrypt$...
+CINETOOLS_ADMIN_PASSWORD_HASH=scrypt$...
+```
+
 ## Existing DB Migration
 If the server already has an older `rental` database with a legacy `items` table, apply the items migration instead of rerunning the full schema:
 
@@ -40,6 +68,16 @@ mysql rental < sql/migrations/20260316_utf8mb4_for_pdf_text.sql
 ```
 
 ## API examples
+
+### Portal auth endpoints
+- `GET /api/auth/projects` - list projects for portal cards
+- `POST /api/auth/:project/login`
+- `GET /api/auth/:project/session`
+- `POST /api/auth/:project/logout`
+
+Protected API zones:
+- `/api/projects`, `/api/items`, `/api/estimates*` require `apitchenkov` login
+- `/api/cinetools/*` require `cinetools` login
 
 ### Create project
 `POST /api/projects`

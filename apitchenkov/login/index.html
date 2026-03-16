@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Вход в Apitchenkov</title>
+  <link rel="stylesheet" href="/shared/auth-ui.css" />
+</head>
+<body data-project="apitchenkov" data-page="login">
+  <main class="auth-shell">
+    <section class="auth-card" style="--accent:#174f3b;">
+      <h1 class="auth-title">Вход в Apitchenkov</h1>
+      <p class="auth-subtitle">Рентал CRM: авторизация только для пользователей Apitchenkov.</p>
+      <form id="loginForm" novalidate>
+        <label class="auth-field">
+          <span>Логин</span>
+          <input id="username" name="username" autocomplete="username" required />
+        </label>
+        <label class="auth-field">
+          <span>Пароль</span>
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <button class="auth-submit" type="submit">Войти</button>
+      </form>
+      <p id="authMessage" class="auth-message"></p>
+      <div class="auth-row">
+        <a class="auth-ghost" href="/">К порталу</a>
+      </div>
+    </section>
+  </main>
+  <script src="/shared/auth-ui.js"></script>
+</body>
+</html>

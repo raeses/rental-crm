@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CineTools Dashboard</title>
+  <link rel="stylesheet" href="/shared/auth-ui.css" />
+</head>
+<body data-project="cinetools" data-page="dashboard">
+  <main class="dashboard-wrap">
+    <header class="dashboard-head">
+      <div>
+        <p class="auth-subtitle" style="margin:0">Sales Platform</p>
+        <h1 class="dashboard-title">CineTools Dashboard</h1>
+        <div class="dashboard-subtitle">Пользователь: <strong data-auth-username>-</strong> · Роль: <strong data-auth-role>-</strong></div>
+      </div>
+      <div class="auth-row" style="margin-top:0">
+        <a class="auth-ghost" href="/">Портал</a>
+        <button id="logoutButton" class="auth-link" type="button">Выйти</button>
+      </div>
+    </header>
+
+    <section class="dashboard-card">
+      <h2 style="margin-top:0">Система продаж</h2>
+      <p class="dashboard-subtitle">Каркас готов: отдельный вход, отдельная сессия, отдельное пространство под будущую CRM продаж.</p>
+    </section>
+  </main>
+  <script src="/shared/auth-ui.js"></script>
+</body>
+</html>
