@@ -1371,8 +1371,8 @@ async function saveProjectDetails() {
           project_id: Number(estimate.project_id || rental.id),
           estimate_number: estimate.estimate_number,
           title: estimate.title || null,
-          start_date: toApiDate(estimate.start_date),
-          end_date: toApiDate(estimate.end_date),
+          start_date: toApiDate(startDate),
+          end_date: toApiDate(endDate),
           discount_percent: discountPercent,
           tax_enabled: Number(taxPayload.tax_percent || 0) > 0,
           tax_percent: Number(taxPayload.tax_percent || 0)
