@@ -7,6 +7,7 @@ import {
 import { hashPassword } from '../auth/passwordUtils.js';
 
 let storeReadyPromise = null;
+const AUTH_SEEDED_PROJECTS = ['admin', ...MANAGED_BUSINESS_PROJECTS];
 
 function normalizeProject(projectSlug) {
   return String(projectSlug || '').trim().toLowerCase();
@@ -14,6 +15,17 @@ function normalizeProject(projectSlug) {
 
 function normalizeUsername(username) {
   return String(username || '').trim().toLowerCase();
+}
+
+export function extractDbUserId(value) {
+  if (Number.isInteger(value) && value > 0) return Number(value);
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  const dbMatch = raw.match(/^db-(\d+)$/i);
+  if (dbMatch) return Number(dbMatch[1]);
+  if (/^\d+$/.test(raw)) return Number(raw);
+  return null;
 }
 
 function assertManagedProject(projectSlug) {
@@ -45,7 +57,7 @@ async function ensureAuthUsersTable() {
 }
 
 async function seedDefaultManagedUsers() {
-  for (const projectSlug of MANAGED_BUSINESS_PROJECTS) {
+  for (const projectSlug of AUTH_SEEDED_PROJECTS) {
     const defaults = getProjectDefaultUsers(projectSlug);
     for (const user of defaults) {
       await pool.execute(
@@ -77,32 +89,121 @@ async function ensureStoreReady() {
   await storeReadyPromise;
 }
 
+export async function resolveAuthUserId(projectSlug, username) {
+  const normalizedProject = normalizeProject(projectSlug);
+  const normalizedUsername = normalizeUsername(username);
+  if (!normalizedProject || !normalizedUsername) return null;
+
+  await ensureStoreReady();
+  const [rows] = await pool.execute(
+    `SELECT id
+     FROM auth_users
+     WHERE project_slug = ?
+       AND username = ?
+     LIMIT 1`,
+    [normalizedProject, normalizedUsername]
+  );
+
+  return rows[0]?.id ? Number(rows[0].id) : null;
+}
+
+export async function getAuthUserById(userId) {
+  const id = Number(userId);
+  if (!Number.isInteger(id) || id <= 0) return null;
+
+  await ensureStoreReady();
+  const [rows] = await pool.execute(
+    `SELECT id, project_slug, username, role, is_active, created_at, updated_at
+     FROM auth_users
+     WHERE id = ?
+     LIMIT 1`,
+    [id]
+  );
+
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: Number(row.id),
+    project_slug: row.project_slug,
+    username: row.username,
+    role: row.role,
+    is_active: Boolean(row.is_active),
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  };
+}
+
+export async function upsertProjectUserPassword({ projectSlug, username, role = 'admin', password }) {
+  const normalizedProject = normalizeProject(projectSlug);
+  const normalizedUsername = normalizeUsername(username);
+  const normalizedRole = String(role || 'admin').trim().toLowerCase() || 'admin';
+  const rawPassword = String(password || '');
+
+  if (!normalizedProject) {
+    const error = new Error('Project slug is required');
+    error.status = 400;
+    throw error;
+  }
+
+  if (!normalizedUsername) {
+    const error = new Error('Username is required');
+    error.status = 400;
+    throw error;
+  }
+
+  if (!rawPassword || rawPassword.length < 8) {
+    const error = new Error('Password must be at least 8 characters');
+    error.status = 400;
+    throw error;
+  }
+
+  await ensureStoreReady();
+  await pool.execute(
+    `INSERT INTO auth_users (project_slug, username, password_hash, role, is_active)
+     VALUES (?, ?, ?, ?, 1)
+     ON DUPLICATE KEY UPDATE
+       password_hash = VALUES(password_hash),
+       role = VALUES(role),
+       is_active = 1`,
+    [normalizedProject, normalizedUsername, hashPassword(rawPassword), normalizedRole]
+  );
+
+  const [rows] = await pool.execute(
+    `SELECT id
+     FROM auth_users
+     WHERE project_slug = ?
+       AND username = ?
+     LIMIT 1`,
+    [normalizedProject, normalizedUsername]
+  );
+
+  return rows[0]?.id ? Number(rows[0].id) : null;
+}
+
 export async function getAuthLoginUser(projectSlug, username) {
   const normalizedProject = normalizeProject(projectSlug);
   const normalizedUsername = normalizeUsername(username);
   if (!normalizedProject || !normalizedUsername) return null;
 
-  if (MANAGED_BUSINESS_PROJECTS.includes(normalizedProject)) {
-    await ensureStoreReady();
+  await ensureStoreReady();
 
-    const [rows] = await pool.execute(
-      `SELECT id, project_slug, username, password_hash, role, is_active
-       FROM auth_users
-       WHERE project_slug = ?
-         AND username = ?
-         AND is_active = 1
-       LIMIT 1`,
-      [normalizedProject, normalizedUsername]
-    );
+  const [rows] = await pool.execute(
+    `SELECT id, project_slug, username, password_hash, role, is_active
+     FROM auth_users
+     WHERE project_slug = ?
+       AND username = ?
+       AND is_active = 1
+     LIMIT 1`,
+    [normalizedProject, normalizedUsername]
+  );
 
-    if (rows[0]) {
-      return {
-        id: `db-${rows[0].id}`,
-        username: rows[0].username,
-        role: rows[0].role || 'manager',
-        passwordHash: rows[0].password_hash
-      };
-    }
+  if (rows[0]) {
+    return {
+      id: `db-${rows[0].id}`,
+      username: rows[0].username,
+      role: rows[0].role || 'manager',
+      passwordHash: rows[0].password_hash
+    };
   }
 
   const fallback = findConfiguredProjectUser(normalizedProject, normalizedUsername);

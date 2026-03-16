@@ -12,6 +12,8 @@ import {
   updateEstimateItem
 } from '../services/estimateService.js';
 import { getProjectById } from '../services/projectService.js';
+import { extractDbUserId } from '../services/authUserService.js';
+import { logUserActivity } from '../services/userActivityLogService.js';
 import { assertNonNegativeNumber, assertPositiveNumber, assertRequiredString, toBool } from '../utils/validation.js';
 import { renderEstimatePdf } from '../pdf/estimatePdf.js';
 
@@ -43,11 +45,27 @@ async function validateCatalogStock(body) {
   }
 }
 
+function getClientIp(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  if (forwarded) return forwarded;
+  return String(req.ip || req.socket?.remoteAddress || '').trim() || 'unknown';
+}
+
 export async function createEstimateHandler(req, res, next) {
   try {
     validateEstimateBody(req.body);
     const data = { ...req.body, tax_enabled: toBool(req.body.tax_enabled) };
     const estimate = await createEstimate(data);
+
+    void logUserActivity({
+      userId: extractDbUserId(req.projectAuth?.id),
+      project: 'apitchenkov',
+      action: 'estimate_create',
+      entity: 'estimate',
+      entityId: estimate?.id || null,
+      ipAddress: getClientIp(req)
+    });
+
     res.status(201).json(estimate);
   } catch (error) {
     next(error);
@@ -69,6 +87,16 @@ export async function updateEstimateHandler(req, res, next) {
     validateEstimateBody(req.body);
     const data = { ...req.body, tax_enabled: toBool(req.body.tax_enabled) };
     const estimate = await updateEstimate(req.params.id, data);
+
+    void logUserActivity({
+      userId: extractDbUserId(req.projectAuth?.id),
+      project: 'apitchenkov',
+      action: 'estimate_update',
+      entity: 'estimate',
+      entityId: estimate?.id || Number(req.params.id) || null,
+      ipAddress: getClientIp(req)
+    });
+
     res.json(estimate);
   } catch (error) {
     next(error);
@@ -78,6 +106,16 @@ export async function updateEstimateHandler(req, res, next) {
 export async function archiveEstimateHandler(req, res, next) {
   try {
     const estimate = await archiveEstimate(req.params.id);
+
+    void logUserActivity({
+      userId: extractDbUserId(req.projectAuth?.id),
+      project: 'apitchenkov',
+      action: 'estimate_delete',
+      entity: 'estimate',
+      entityId: estimate?.id || Number(req.params.id) || null,
+      ipAddress: getClientIp(req)
+    });
+
     res.json(estimate);
   } catch (error) {
     next(error);

@@ -1,5 +1,8 @@
 const MANAGED_PROJECTS = ['apitchenkov', 'cinetools'];
 
+let usersById = new Map();
+let selectedUserId = null;
+
 function setMessage(text, isError = true) {
   const message = document.getElementById('adminMessage');
   if (!message) return;
@@ -25,6 +28,13 @@ async function api(path, options = {}) {
   return payload;
 }
 
+function formatDateTime(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString('ru-RU');
+}
+
 function roleSelectValue(role) {
   const safeRole = String(role || 'manager').toLowerCase();
   const roles = ['admin', 'manager', 'viewer'];
@@ -37,6 +47,8 @@ function roleSelectValue(role) {
 function renderUsers(users = []) {
   const body = document.getElementById('adminUsersBody');
   if (!body) return;
+
+  usersById = new Map(users.map((user) => [Number(user.id), user]));
 
   if (!users.length) {
     body.innerHTML = '<tr><td colspan="7" class="empty">Пользователи не найдены.</td></tr>';
@@ -52,15 +64,112 @@ function renderUsers(users = []) {
         <td><select data-field="role">${roleSelectValue(user.role)}</select></td>
         <td><input data-field="is_active" type="checkbox" ${user.is_active ? 'checked' : ''} /></td>
         <td><input data-field="password" type="password" placeholder="не менять" /></td>
-        <td><button class="admin-save" data-action="save">Сохранить</button></td>
+        <td>
+          <div class="admin-actions">
+            <button class="admin-save" data-action="save">Сохранить</button>
+            <button class="admin-view" data-action="view">История</button>
+          </div>
+        </td>
       </tr>
     `)
     .join('');
 }
 
+function renderLoginLogs(logins = []) {
+  const body = document.getElementById('adminLoginLogsBody');
+  if (!body) return;
+
+  if (!logins.length) {
+    body.innerHTML = '<tr><td colspan="4" class="empty">Логинов пока нет.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = logins
+    .map((entry) => `
+      <tr>
+        <td>${formatDateTime(entry.created_at)}</td>
+        <td>${entry.ip_address || '-'}</td>
+        <td>${entry.project || '-'}</td>
+        <td class="${entry.success ? 'admin-status-ok' : 'admin-status-fail'}">
+          ${entry.success ? 'успешно' : 'ошибка'}
+        </td>
+      </tr>
+    `)
+    .join('');
+}
+
+function renderActivityLogs(activity = []) {
+  const body = document.getElementById('adminActivityLogsBody');
+  if (!body) return;
+
+  if (!activity.length) {
+    body.innerHTML = '<tr><td colspan="6" class="empty">Действий пока нет.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = activity
+    .map((entry) => `
+      <tr>
+        <td>${formatDateTime(entry.created_at)}</td>
+        <td>${entry.project || '-'}</td>
+        <td>${entry.action || '-'}</td>
+        <td>${entry.entity || '-'}</td>
+        <td>${entry.entity_id ?? '-'}</td>
+        <td>${entry.ip_address || '-'}</td>
+      </tr>
+    `)
+    .join('');
+}
+
+function setSelectedHistoryUser(user) {
+  const container = document.getElementById('adminUserHistory');
+  const label = document.getElementById('historyUserLabel');
+  if (!container || !label) return;
+
+  if (!user) {
+    label.textContent = '-';
+    container.hidden = true;
+    return;
+  }
+
+  label.textContent = `${user.username} (${user.project_slug})`;
+  container.hidden = false;
+}
+
+async function loadUserHistory(userId) {
+  const id = Number(userId);
+  if (!Number.isInteger(id) || id <= 0) return;
+  selectedUserId = id;
+
+  const user = usersById.get(id);
+  setSelectedHistoryUser(user || null);
+
+  const [loginsPayload, activityPayload] = await Promise.all([
+    api(`/api/admin/users/${id}/logins`),
+    api(`/api/admin/users/${id}/activity`)
+  ]);
+
+  renderLoginLogs(Array.isArray(loginsPayload.logins) ? loginsPayload.logins : []);
+  renderActivityLogs(Array.isArray(activityPayload.activity) ? activityPayload.activity : []);
+}
+
 async function loadUsers(projectSlug) {
   const payload = await api(`/api/admin/users?project=${encodeURIComponent(projectSlug)}`);
-  renderUsers(Array.isArray(payload.users) ? payload.users : []);
+  const users = Array.isArray(payload.users) ? payload.users : [];
+  renderUsers(users);
+
+  if (!selectedUserId) {
+    setSelectedHistoryUser(null);
+    return;
+  }
+
+  if (!usersById.has(selectedUserId)) {
+    selectedUserId = null;
+    setSelectedHistoryUser(null);
+    return;
+  }
+
+  await loadUserHistory(selectedUserId);
 }
 
 async function saveUserRow(row) {
@@ -113,6 +222,7 @@ async function bootstrap() {
   const refreshButton = document.getElementById('adminRefresh');
   const createForm = document.getElementById('adminCreateUserForm');
   const usersBody = document.getElementById('adminUsersBody');
+  const changePasswordForm = document.getElementById('adminChangePasswordForm');
 
   const currentProject = MANAGED_PROJECTS.includes(projectFilter?.value)
     ? projectFilter.value
@@ -124,6 +234,7 @@ async function bootstrap() {
   if (projectFilter) {
     projectFilter.addEventListener('change', async () => {
       try {
+        selectedUserId = null;
         setMessage('');
         await loadUsers(projectFilter.value);
       } catch (error) {
@@ -181,9 +292,51 @@ async function bootstrap() {
 
         createForm.reset();
         document.getElementById('newUserProject').value = projectSlug;
-        projectFilter.value = projectSlug;
+        if (projectFilter) projectFilter.value = projectSlug;
         await loadUsers(projectSlug);
         setMessage('Пользователь создан.', false);
+      } catch (error) {
+        setMessage(error.message);
+      }
+    });
+  }
+
+  if (changePasswordForm) {
+    changePasswordForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const currentPassword = document.getElementById('currentPassword')?.value || '';
+      const newPassword = document.getElementById('newPasswordSelf')?.value || '';
+      const repeatPassword = document.getElementById('repeatPasswordSelf')?.value || '';
+
+      if (!currentPassword || !newPassword || !repeatPassword) {
+        setMessage('Заполни все поля для смены пароля.');
+        return;
+      }
+
+      if (newPassword.length < 8) {
+        setMessage('Новый пароль должен быть не короче 8 символов.');
+        return;
+      }
+
+      if (newPassword !== repeatPassword) {
+        setMessage('Новый пароль и повтор не совпадают.');
+        return;
+      }
+
+      try {
+        setMessage('');
+        await api('/api/admin/change-password', {
+          method: 'POST',
+          body: JSON.stringify({
+            current_password: currentPassword,
+            new_password: newPassword,
+            new_password_repeat: repeatPassword
+          })
+        });
+
+        changePasswordForm.reset();
+        setMessage('Пароль успешно изменён.', false);
       } catch (error) {
         setMessage(error.message);
       }
@@ -194,14 +347,24 @@ async function bootstrap() {
     usersBody.addEventListener('click', async (event) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
-      if (target.dataset.action !== 'save') return;
 
+      const action = target.dataset.action;
       const row = target.closest('tr[data-user-id]');
       if (!row) return;
 
       try {
-        setMessage('');
-        await saveUserRow(row);
+        if (action === 'save') {
+          setMessage('');
+          await saveUserRow(row);
+          const activeProject = projectFilter?.value || MANAGED_PROJECTS[0];
+          await loadUsers(activeProject);
+          return;
+        }
+
+        if (action === 'view') {
+          setMessage('');
+          await loadUserHistory(row.dataset.userId);
+        }
       } catch (error) {
         setMessage(error.message);
       }

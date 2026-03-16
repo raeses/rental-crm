@@ -33,6 +33,27 @@
         <button id="adminRefresh" class="auth-ghost" type="button">Обновить</button>
       </div>
 
+      <form id="adminChangePasswordForm" class="admin-change-form">
+        <h2>Сменить пароль администратора</h2>
+        <div class="admin-grid">
+          <label class="auth-field">
+            <span>Текущий пароль</span>
+            <input id="currentPassword" type="password" required minlength="8" />
+          </label>
+          <label class="auth-field">
+            <span>Новый пароль</span>
+            <input id="newPasswordSelf" type="password" required minlength="8" />
+          </label>
+          <label class="auth-field">
+            <span>Повтори новый пароль</span>
+            <input id="repeatPasswordSelf" type="password" required minlength="8" />
+          </label>
+        </div>
+        <div class="auth-row">
+          <button class="auth-link" type="submit">Сменить пароль</button>
+        </div>
+      </form>
+
       <form id="adminCreateUserForm" class="admin-create-form">
         <h2>Создать пользователя</h2>
         <div class="admin-grid">
@@ -85,6 +106,50 @@
           </tbody>
         </table>
       </div>
+
+      <section id="adminUserHistory" class="admin-history" hidden>
+        <h2>История пользователя: <strong id="historyUserLabel">-</strong></h2>
+        <div class="admin-history-grid">
+          <article class="admin-history-card">
+            <h3>Последние входы</h3>
+            <div class="admin-table-wrap">
+              <table class="admin-table admin-table-compact">
+                <thead>
+                  <tr>
+                    <th>Время</th>
+                    <th>IP</th>
+                    <th>Проект</th>
+                    <th>Статус</th>
+                  </tr>
+                </thead>
+                <tbody id="adminLoginLogsBody">
+                  <tr><td colspan="4" class="empty">Выбери пользователя для просмотра истории.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+          <article class="admin-history-card">
+            <h3>Журнал действий</h3>
+            <div class="admin-table-wrap">
+              <table class="admin-table admin-table-compact">
+                <thead>
+                  <tr>
+                    <th>Время</th>
+                    <th>Проект</th>
+                    <th>Действие</th>
+                    <th>Сущность</th>
+                    <th>ID</th>
+                    <th>IP</th>
+                  </tr>
+                </thead>
+                <tbody id="adminActivityLogsBody">
+                  <tr><td colspan="6" class="empty">Выбери пользователя для просмотра действий.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
     </section>
   </main>
 

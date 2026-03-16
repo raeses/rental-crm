@@ -27,6 +27,7 @@ Run on existing DB:
 mysql rental < sql/migrations/20260314_items_mvp.sql
 mysql rental < sql/migrations/20260316_auth_users_portal.sql
 mysql rental < sql/migrations/20260316_auth_login_attempts.sql
+mysql rental < sql/migrations/20260316_user_logs_and_activity.sql
 mysql rental < sql/migrations/20260316_utf8mb4_for_pdf_text.sql
 ```
 
@@ -82,6 +83,9 @@ Login errors are neutral (`Invalid credentials`) to avoid account enumeration.
 - `GET /api/admin/users?project=apitchenkov|cinetools`
 - `POST /api/admin/users`
 - `PUT /api/admin/users/:id`
+- `GET /api/admin/users/:id/logins`
+- `GET /api/admin/users/:id/activity`
+- `POST /api/admin/change-password`
 
 ## Audit logging
 Every login attempt (success/failure) is written to `auth_login_attempts` with:
@@ -92,6 +96,10 @@ Every login attempt (success/failure) is written to `auth_login_attempts` with:
 - `success`
 - `failure_reason`
 - `attempted_at`
+
+Additional per-user audit tables:
+- `user_login_logs` (login history by `user_id`)
+- `user_activity_logs` (actions by `user_id`)
 
 ## HTTPS and nginx guidance (production)
 Recommended nginx setup:

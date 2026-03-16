@@ -2,8 +2,9 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { appEnv } from '../config/env.js';
 import { getProjectConfig, listPortalProjects } from '../auth/projectsConfig.js';
-import { getAuthLoginUser } from '../services/authUserService.js';
+import { extractDbUserId, getAuthLoginUser, resolveAuthUserId } from '../services/authUserService.js';
 import { logLoginAttempt } from '../services/authAuditService.js';
+import { logUserLogin } from '../services/userLoginLogService.js';
 import { verifyPassword } from '../auth/passwordUtils.js';
 
 const router = Router();
@@ -23,6 +24,18 @@ function buildRateLimitHandler(reason) {
   return function rateLimitHandler(req, res) {
     const projectSlug = String(req.params.project || '').toLowerCase();
     const username = String(req.body?.username || '').trim().toLowerCase();
+
+    void (async () => {
+      const userId = await resolveAuthUserId(projectSlug, username);
+      await logUserLogin({
+        userId,
+        project: projectSlug,
+        ipAddress: getClientIp(req),
+        userAgent: req.get('user-agent') || '',
+        success: false
+      });
+    })();
+
     void logLoginAttempt({
       projectSlug,
       username: username || 'unknown',
@@ -106,6 +119,15 @@ router.post('/:project/login', loginLimiter, failedLoginLimiter, async (req, res
     const normalizedUsername = username.toLowerCase();
 
     if (!username || !password) {
+      const userId = await resolveAuthUserId(projectSlug, normalizedUsername);
+      await logUserLogin({
+        userId,
+        project: projectSlug,
+        ipAddress: getClientIp(req),
+        userAgent: req.get('user-agent') || '',
+        success: false
+      });
+
       await logLoginAttempt({
         projectSlug,
         username: normalizedUsername || 'unknown',
@@ -119,6 +141,15 @@ router.post('/:project/login', loginLimiter, failedLoginLimiter, async (req, res
 
     const user = await getAuthLoginUser(projectSlug, normalizedUsername);
     if (!user || !verifyPassword(password, user.passwordHash)) {
+      const userId = await resolveAuthUserId(projectSlug, normalizedUsername);
+      await logUserLogin({
+        userId,
+        project: projectSlug,
+        ipAddress: getClientIp(req),
+        userAgent: req.get('user-agent') || '',
+        success: false
+      });
+
       await logLoginAttempt({
         projectSlug,
         username: normalizedUsername,
@@ -153,6 +184,13 @@ router.post('/:project/login', loginLimiter, failedLoginLimiter, async (req, res
         await logLoginAttempt({
           projectSlug,
           username: normalizedUsername,
+          ipAddress: getClientIp(req),
+          userAgent: req.get('user-agent') || '',
+          success: true
+        });
+        await logUserLogin({
+          userId: extractDbUserId(user.id) || (await resolveAuthUserId(projectSlug, normalizedUsername)),
+          project: projectSlug,
           ipAddress: getClientIp(req),
           userAgent: req.get('user-agent') || '',
           success: true

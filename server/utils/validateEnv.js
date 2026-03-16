@@ -30,6 +30,11 @@ function isScryptHash(value) {
   return salt.length >= 16 && digest.length >= 64;
 }
 
+function isBcryptHash(value) {
+  if (!value || typeof value !== 'string') return false;
+  return /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(value);
+}
+
 export function validateEnv(raw = process.env) {
   const nodeEnv = String(raw.NODE_ENV || 'development').trim().toLowerCase();
   const isProduction = nodeEnv === 'production';
@@ -77,8 +82,8 @@ export function validateEnv(raw = process.env) {
     ['APITCHENKOV_ADMIN_PASSWORD_HASH', 'CINETOOLS_ADMIN_PASSWORD_HASH', 'PORTAL_ADMIN_PASSWORD_HASH']
       .forEach((key) => {
         const value = String(raw[key] || '').trim();
-        if (value && !isScryptHash(value)) {
-          errors.push(`${key} must be a valid scrypt hash`);
+        if (value && !isScryptHash(value) && !isBcryptHash(value)) {
+          errors.push(`${key} must be a valid bcrypt or scrypt hash`);
         }
       });
 

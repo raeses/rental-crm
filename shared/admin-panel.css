@@ -34,6 +34,11 @@
   font-size: 20px;
 }
 
+.admin-change-form h2 {
+  margin: 0 0 10px;
+  font-size: 20px;
+}
+
 .admin-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -85,9 +90,69 @@
   font-weight: 700;
 }
 
+.admin-view {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  background: #fff;
+  color: #1d2a3a;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-history {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-history h2 {
+  margin: 0;
+}
+
+.admin-history-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-history-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+}
+
+.admin-history-card h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.admin-table-compact {
+  min-width: 560px;
+}
+
+.admin-status-ok {
+  color: #1e6a3d;
+  font-weight: 700;
+}
+
+.admin-status-fail {
+  color: #9e2d2d;
+  font-weight: 700;
+}
+
 @media (max-width: 980px) {
   .admin-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-history-grid {
+    grid-template-columns: 1fr;
   }
 }
 
