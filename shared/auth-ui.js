@@ -1,5 +1,5 @@
 function pickProjectFromPath() {
-  const match = window.location.pathname.match(/^\/(cinetools|apitchenkov)\b/i);
+  const match = window.location.pathname.match(/^\/(cinetools|apitchenkov|admin)\b/i);
   return match ? match[1].toLowerCase() : null;
 }
 

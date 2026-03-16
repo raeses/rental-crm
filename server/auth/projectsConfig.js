@@ -7,7 +7,9 @@ const PROJECTS = {
     themeColor: '#0f4c81',
     loginPath: '/cinetools/login/',
     dashboardPath: '/cinetools/dashboard/',
-    users: [
+    includeInPortal: true,
+    managedUsers: true,
+    defaultUsers: [
       {
         id: 'cinetools-admin',
         username: process.env.CINETOOLS_ADMIN_USERNAME || 'admin',
@@ -26,7 +28,9 @@ const PROJECTS = {
     themeColor: '#174f3b',
     loginPath: '/apitchenkov/login/',
     dashboardPath: '/apitchenkov/dashboard/',
-    users: [
+    includeInPortal: true,
+    managedUsers: true,
+    defaultUsers: [
       {
         id: 'apitchenkov-admin',
         username: process.env.APITCHENKOV_ADMIN_USERNAME || 'admin',
@@ -36,8 +40,33 @@ const PROJECTS = {
           'scrypt$b5fc16fafc8224d11f12e00cbc84182e$e58521468b3812e0079dcc1ce09626fb17348cbd8d8125bcbc18f9c2645e9ce3064a493ad3e11eac0375ae7911b0168c49fecc6a88c4b7926a19233bc06627bd'
       }
     ]
+  },
+  admin: {
+    slug: 'admin',
+    title: 'Admin Panel',
+    tagline: 'Управление доступом',
+    description: 'Создание и редактирование пользователей для CineTools и Apitchenkov.',
+    themeColor: '#1d2a3a',
+    loginPath: '/admin/login/',
+    dashboardPath: '/admin/dashboard/',
+    includeInPortal: true,
+    managedUsers: false,
+    defaultUsers: [
+      {
+        id: 'portal-admin',
+        username: process.env.PORTAL_ADMIN_USERNAME || 'portal-admin',
+        role: 'superadmin',
+        passwordHash:
+          process.env.PORTAL_ADMIN_PASSWORD_HASH ||
+          'scrypt$c3f14ba4d60d1632ccebfe271258e0f4$985a51bab40d0b6af17946159889e0dfb5de923e1a0801a96cbbecc40629a2f34459539beaf2f38f3c68f9c33e5009d224822731a6b4ad98285cf0c351e9fd4d'
+      }
+    ]
   }
 };
+
+export const MANAGED_BUSINESS_PROJECTS = Object.values(PROJECTS)
+  .filter((project) => project.managedUsers)
+  .map((project) => project.slug);
 
 export function getProjectConfig(projectSlug) {
   if (!projectSlug) return null;
@@ -45,23 +74,35 @@ export function getProjectConfig(projectSlug) {
 }
 
 export function listPortalProjects() {
-  return Object.values(PROJECTS).map((project) => ({
-    slug: project.slug,
-    title: project.title,
-    tagline: project.tagline,
-    description: project.description,
-    themeColor: project.themeColor,
-    loginPath: project.loginPath,
-    dashboardPath: project.dashboardPath
-  }));
+  return Object.values(PROJECTS)
+    .filter((project) => project.includeInPortal)
+    .map((project) => ({
+      slug: project.slug,
+      title: project.title,
+      tagline: project.tagline,
+      description: project.description,
+      themeColor: project.themeColor,
+      loginPath: project.loginPath,
+      dashboardPath: project.dashboardPath
+    }));
 }
 
-export function findProjectUser(projectSlug, username) {
+export function findConfiguredProjectUser(projectSlug, username) {
   const project = getProjectConfig(projectSlug);
   if (!project) return null;
 
   const normalized = String(username || '').trim().toLowerCase();
   if (!normalized) return null;
 
-  return project.users.find((user) => String(user.username || '').trim().toLowerCase() === normalized) || null;
+  return (
+    project.defaultUsers.find(
+      (user) => String(user.username || '').trim().toLowerCase() === normalized
+    ) || null
+  );
+}
+
+export function getProjectDefaultUsers(projectSlug) {
+  const project = getProjectConfig(projectSlug);
+  if (!project) return [];
+  return Array.isArray(project.defaultUsers) ? project.defaultUsers : [];
 }

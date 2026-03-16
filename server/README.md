@@ -17,6 +17,7 @@ Implemented business portal with independent auth contexts:
 - `/` - project selection portal
 - `/cinetools/login/` -> `/cinetools/dashboard/`
 - `/apitchenkov/login/` -> `/apitchenkov/dashboard/`
+- `/admin/login/` -> `/admin/dashboard/`
 
 Sessions are isolated per project (`authByProject` in one cookie):
 - login to `apitchenkov` does not grant `cinetools` access
@@ -25,6 +26,7 @@ Sessions are isolated per project (`authByProject` in one cookie):
 Default seeded users (change immediately in production):
 - `apitchenkov`: `admin / Apitchenkov!2026`
 - `cinetools`: `admin / CineTools!2026`
+- `admin`: `portal-admin / AdminPortal!2026`
 
 To generate password hash:
 
@@ -37,6 +39,7 @@ Then put hash into `.env`:
 ```env
 APITCHENKOV_ADMIN_PASSWORD_HASH=scrypt$...
 CINETOOLS_ADMIN_PASSWORD_HASH=scrypt$...
+PORTAL_ADMIN_PASSWORD_HASH=scrypt$...
 ```
 
 ## Existing DB Migration
@@ -78,6 +81,18 @@ mysql rental < sql/migrations/20260316_utf8mb4_for_pdf_text.sql
 Protected API zones:
 - `/api/projects`, `/api/items`, `/api/estimates*` require `apitchenkov` login
 - `/api/cinetools/*` require `cinetools` login
+- `/api/admin/*` require `admin` login
+
+### Admin users API
+- `GET /api/admin/users?project=apitchenkov|cinetools`
+- `POST /api/admin/users`
+- `PUT /api/admin/users/:id`
+
+Database migration for managed users table:
+
+```bash
+mysql rental < sql/migrations/20260316_auth_users_portal.sql
+```
 
 ### Create project
 `POST /api/projects`

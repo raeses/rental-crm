@@ -9,6 +9,7 @@ import estimatesRoutes from './routes/estimatesRoutes.js';
 import itemsRoutes from './routes/itemsRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import cinetoolsRoutes from './routes/cinetoolsRoutes.js';
+import adminUsersRoutes from './routes/adminUsersRoutes.js';
 import { requireProjectAuth } from './middleware/requireProjectAuth.js';
 
 dotenv.config();
@@ -43,6 +44,7 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);
 
 app.use('/api/cinetools', requireProjectAuth('cinetools'), cinetoolsRoutes);
+app.use('/api/admin', requireProjectAuth('admin'), adminUsersRoutes);
 
 app.use('/api/items', requireProjectAuth('apitchenkov'), itemsRoutes);
 app.use('/api/projects', requireProjectAuth('apitchenkov'), projectsRoutes);
@@ -58,6 +60,11 @@ app.get('/cinetools/login', (_req, res) => res.redirect('/cinetools/login/'));
 app.get('/cinetools/login/', (_req, res) => res.sendFile(path.join(webRoot, 'cinetools/login/index.html')));
 app.get('/cinetools/dashboard', (_req, res) => res.redirect('/cinetools/dashboard/'));
 app.get('/cinetools/dashboard/', (_req, res) => res.sendFile(path.join(webRoot, 'cinetools/dashboard/index.html')));
+app.get('/admin', (_req, res) => res.redirect('/admin/login/'));
+app.get('/admin/login', (_req, res) => res.redirect('/admin/login/'));
+app.get('/admin/login/', (_req, res) => res.sendFile(path.join(webRoot, 'admin/login/index.html')));
+app.get('/admin/dashboard', (_req, res) => res.redirect('/admin/dashboard/'));
+app.get('/admin/dashboard/', (_req, res) => res.sendFile(path.join(webRoot, 'admin/dashboard/index.html')));
 
 app.use((error, _req, res, _next) => {
   const status = error.status || 500;

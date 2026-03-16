@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Panel</title>
+  <link rel="stylesheet" href="/shared/auth-ui.css" />
+  <link rel="stylesheet" href="/shared/admin-panel.css" />
+</head>
+<body data-project="admin" data-page="dashboard">
+  <main class="dashboard-wrap admin-wrap">
+    <header class="dashboard-head">
+      <div>
+        <p class="auth-subtitle" style="margin:0">Access Control</p>
+        <h1 class="dashboard-title">Admin Panel</h1>
+        <div class="dashboard-subtitle">Администратор: <strong data-auth-username>-</strong> · Роль: <strong data-auth-role>-</strong></div>
+      </div>
+      <div class="auth-row" style="margin-top:0">
+        <a class="auth-ghost" href="/">Портал</a>
+        <button id="logoutButton" class="auth-link" type="button">Выйти</button>
+      </div>
+    </header>
+
+    <section class="dashboard-card admin-card">
+      <div class="admin-toolbar">
+        <label class="auth-field admin-field">
+          <span>Проект</span>
+          <select id="adminProjectFilter">
+            <option value="apitchenkov">Apitchenkov</option>
+            <option value="cinetools">CineTools</option>
+          </select>
+        </label>
+        <button id="adminRefresh" class="auth-ghost" type="button">Обновить</button>
+      </div>
+
+      <form id="adminCreateUserForm" class="admin-create-form">
+        <h2>Создать пользователя</h2>
+        <div class="admin-grid">
+          <label class="auth-field">
+            <span>Проект</span>
+            <select id="newUserProject" required>
+              <option value="apitchenkov">Apitchenkov</option>
+              <option value="cinetools">CineTools</option>
+            </select>
+          </label>
+          <label class="auth-field">
+            <span>Логин</span>
+            <input id="newUsername" required minlength="3" />
+          </label>
+          <label class="auth-field">
+            <span>Роль</span>
+            <select id="newRole">
+              <option value="admin">admin</option>
+              <option value="manager">manager</option>
+              <option value="viewer">viewer</option>
+            </select>
+          </label>
+          <label class="auth-field">
+            <span>Пароль</span>
+            <input id="newPassword" type="password" required minlength="8" />
+          </label>
+        </div>
+        <div class="auth-row">
+          <button class="auth-link" type="submit">Создать</button>
+        </div>
+      </form>
+
+      <p id="adminMessage" class="auth-message"></p>
+
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Проект</th>
+              <th>Логин</th>
+              <th>Роль</th>
+              <th>Активен</th>
+              <th>Новый пароль</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody id="adminUsersBody">
+            <tr><td colspan="7" class="empty">Загрузка...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/shared/auth-ui.js"></script>
+  <script src="/shared/admin-panel.js"></script>
+</body>
+</html>
